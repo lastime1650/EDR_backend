@@ -1,25 +1,27 @@
 # EDR_backend
 This repository is a backend resources for EDR
 
-# Core Server
+--
+
+## Core Server
 ```
   Preparing ...
 ```
 <br>
 
-# Analysis Server 
+## Analysis Server 
 ```
   Preparing ...
 ```
 <br>
 
-# LLM Server
+## LLM Server
 ```
   Preparing ...
 ```
 <br>
 
-# Web Server
+## Web Server
 ```
   Preparing ...
 ```
