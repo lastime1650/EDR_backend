@@ -1,1 +1,1 @@
-.
+분석 서버입니다. 자세한 내용은 [https://app.gitbook.com/o/8WN65Gulb8fcfnXXB29z/s/HBo167zFeA32EiE4tGBO/edr-backend/analysis-server](https://app.gitbook.com/o/8WN65Gulb8fcfnXXB29z/s/HBo167zFeA32EiE4tGBO/edr-backend/analysis-server)에서 풀이되었습니다.
