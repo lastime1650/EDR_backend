@@ -16,9 +16,11 @@ This repository is a backend resources for EDR
 -------------------
 <br>
 ## Core Server - Golang
+
 ```
   1차 개발 완료
 ```
+
 How to work -> [https://cominam-documents.gitbook.io/ai-edr-system/edr/core-server](https://cominam-documents.gitbook.io/ai-edr-system/edr/core-server)
 
 <br>
