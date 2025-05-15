@@ -13,6 +13,16 @@ This repository is a backend resources for EDR
 - 1) Dockerfile ( 개발한 EDR 이미지 생성용 )
 - 2) docker-compose.yaml ( 의존성 이미지 한방! )
 
+### 의존성 요구 도커 이미지 리스트
+
+1. Elasticsearch (docker.elastic.co/elasticsearch/elasticsearch:8.17.4)
+2. Kibana (docker.elastic.co/kibana/kibana:8.17.4)
+3. Logstash (docker.elastic.co/logstash/logstash:8.17.4)
+4. Kafka (confluentinc/cp-kafka:latest)
+5. Kafka-Ui (provectuslabs/kafka-ui:latest)
+6. Zookeeper (confluentinc/cp-zookeeper:latest)
+7. MariaDB (mariadb:10.7)
+
 -------------------
 <br>
 
