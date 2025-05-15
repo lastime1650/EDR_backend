@@ -15,7 +15,8 @@ This repository is a backend resources for EDR
 
 -------------------
 <br>
-## Core Server - Golang
+
+## Core Server - >= Golang 1.23
 
 ```
   1차 개발 완료
