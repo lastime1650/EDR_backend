@@ -10,8 +10,8 @@ This repository is a backend resources for EDR
 
 ### EDR 도커 실행을 위한 준비물 리스트
 
-- 1) Dockerfile ( 개발한 EDR 이미지 생성용 )
-- 2) docker-compose.yaml ( 의존성 이미지 한방! )
+- 1) [Dockerfile](https://github.com/lastime1650/EDR_backend/blob/main/docker-compose.yml) ( 개발한 EDR 이미지 생성용 )
+- 2) [docker-compose.yaml](https://github.com/lastime1650/EDR_backend/blob/main/docker-compose.yml) ( 의존성 이미지 한방! )
 
 ### 의존성 요구 도커 이미지 리스트
 
