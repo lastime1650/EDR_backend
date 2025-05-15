@@ -62,8 +62,7 @@ COPY WEBserver/ .
 # 최상위 루트로 이동
 WORKDIR /
 
-#CMD ["./run_coreserver"]
-# 절대경로로 실행하는게 좋음
-# CMD ["/bin/bash", "-c", "/CoreServer/run_coreserver & python3 /docker__AnalysisServer/main.py & python3 /docker__WEBserver/main.py"]
+# 한 이미지에 서버 3개 로드합니다. ( Core Server / Analysis Server / Web Server + LLM )
 
-CMD ["/bin/bash", "-c", "/CoreServer/run_coreserver"]
+# 가상 이미지내 절대경로로 실행하는게 좋음
+CMD ["/bin/bash", "-c", "/CoreServer/run_coreserver & python3 /docker__AnalysisServer/main.py & python3 /docker__WEBserver/main.py"]
