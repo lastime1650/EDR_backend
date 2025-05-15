@@ -10,12 +10,12 @@ This repository is a backend resources for EDR
 
 ### EDR 도커 실행을 위한 준비물 리스트
 
-- 1) Dockerfile ( 개발한 EDR 이미지(1개) 개발 )
+- 1) Dockerfile ( 개발한 EDR 이미지 생성용 )
 - 2) docker-compose.yaml ( 의존성 이미지 한방! )
 
 -------------------
 <br>
-## Core Server
+## Core Server - Golang
 ```
   1차 개발 완료
 ```
@@ -23,7 +23,7 @@ How to work -> [https://cominam-documents.gitbook.io/ai-edr-system/edr/core-serv
 
 <br>
 
-## Analysis Server 
+## Analysis Server - >= Python 3.9
 ```
   1차 개발 완료!
 ```
@@ -31,7 +31,7 @@ file -> [https://github.com/lastime1650/EDR_backend/tree/main/Analysis_Server](h
 here is description -> [https://cominam-documents.gitbook.io/cominam-edr/edr-backend/analysis-server](https://cominam-documents.gitbook.io/cominam-edr/edr-backend/analysis-server)
 <br>
 
-## Web Server
+## Web Server - >= Python 3.9
 ```
   Preparing ...
 ```
