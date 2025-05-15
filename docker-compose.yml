@@ -206,8 +206,8 @@ services:
       - db_data:/var/lib/mysql # 데이터 지속성을 위한 볼륨 마운트
   edr:
       build:
-        context: E:/ # 소스파일 위치
-        dockerfile: E:/Dockerfile # 도커 파일 위치 
+        context: . # 소스파일 위치
+        dockerfile: Dockerfile # 도커 파일 위치 
       hostname: EDR
       container_name: EDR
       networks:
