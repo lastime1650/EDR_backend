@@ -32,6 +32,8 @@ This repository is a backend resources for EDR
   1차 개발 완료
 ```
 
+소스코드 -> [https://github.com/lastime1650/EDR_backend/tree/main/CoreServer2](https://github.com/lastime1650/EDR_backend/tree/main/CoreServer2)
+
 How to work -> [https://cominam-documents.gitbook.io/ai-edr-system/edr/core-server](https://cominam-documents.gitbook.io/ai-edr-system/edr/core-server)
 
 <br>
