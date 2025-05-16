@@ -18,20 +18,22 @@ func New_Mysql(serverIP string, port int, dbUser string, dbPassword string, dbna
 	db, err := sql.Open("mysql", connect_info)
 	if err != nil {
 		log.Fatalf("초기 DB 연결 실패: %v", err)
+		return nil
 	}
 
 	// Step 2: DB 생성
 	_, err = db.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", dbname))
 	if err != nil {
 		log.Fatalf("데이터베이스 생성 실패 또는 이미 존재함!: %v", err)
+		return nil
 	}
-	fmt.Printf("'%s' 데이터베이스가 존재하지 않아 새로 생성했습니다.\n", dbname)
 
 	// Step 3: 생성된 DB로 다시 연결
 	connect_info_with_db := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", dbUser, dbPassword, serverIP, port, dbname)
 	db_with_db, err := sql.Open("mysql", connect_info_with_db)
 	if err != nil {
 		log.Fatalf("DB 연결 실패 (dbname 포함): %v", err)
+		return nil
 	}
 
 	fmt.Println("DB 연결 성공")

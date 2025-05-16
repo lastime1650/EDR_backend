@@ -12,7 +12,6 @@ import (
 	"CoreServer/util"
 	"fmt"
 	"net"
-	"strings"
 	"sync"
 	"time"
 )
@@ -136,14 +135,6 @@ func (as *Agent_Manager) send_agent_log(recv_data []parse.Deserialization_struct
 
 				// 1. 프로세스 "생성 시" 사용자가 실제 클릭해서 실행했는 지 여부 파싱하기 ( Output_Process_Life_Cycle_infos 에 편입됨 )
 				// 2. 일관성이 있는 프로세스 정보를 위한 "사이클" 정보 가져오기
-
-				// 검증
-				if parsed_event.Command == enums.PsSetCreateProcessNotifyRoutine_Creation_Detail {
-					if strings.Contains(parsed_event.Dyn_Data["COMMANDLINE"].(string), "3cea7cbee2255b4f0ffcb89021df02fe1949a4b98f5b9ff3eb4c63676f9f19a1.exe") {
-						fmt.Println("감지됨")
-					}
-				}
-
 				cycle_, err := as.Agent_Controller.Output_Process_Life_Cycle_infos(parsed_event)
 				if err != nil {
 					continue // 사이클을 정상적으로 가져오기 못한 경우
@@ -159,7 +150,7 @@ func (as *Agent_Manager) send_agent_log(recv_data []parse.Deserialization_struct
 
 				// 네트워크 유형일 떄 remote_ip 분석서버에 분석 요청
 				if parsed_event.Command == enums.Network_Traffic {
-					as.request_remote_ip_analysis(parsed_event.Dyn_Data["REMOTE_IP"].(string))
+					as.check_network_analysis(parsed_event.Dyn_Data["REMOTE_IP"].(string))
 				}
 
 				send_data := map[string]interface{}{
@@ -176,14 +167,8 @@ func (as *Agent_Manager) send_agent_log(recv_data []parse.Deserialization_struct
 					"dyndata": parsed_event.Dyn_Data,
 				}
 				send_datas = append(send_datas, send_data)
-				// 등록된 서버에 이벤트 전달 ( 중요 )
-				//go as.shareobject.RegisteredServer_Manager.Send_2_ALL_Server_with_mapped(
-				//	parsed_event.Command,
-				//	send_data,
-				//)
 
 				// 이벤트 1개 -> ElasticSearch index 규격 JSON생성 -> 카프카 전송
-				//fmt.Print("이벤트 전송\n")
 				as.send_to_elastic_search(
 					parsed_event.Command,
 					uint32(parsed_event.PID),
@@ -191,7 +176,6 @@ func (as *Agent_Manager) send_agent_log(recv_data []parse.Deserialization_struct
 					*cycle_,
 					parsed_event.Dyn_Data,
 				)
-				//fmt.Print("이벤트 전송완료\n")
 
 			} else {
 				fmt.Println("이벤트 변환 실패!")
@@ -267,10 +251,6 @@ func (as *Agent_Manager) save_Binary_File(file_path_on_endpoint string, fileSize
 
 	sha256 := ""
 
-	// "AddInProcess32" 찾기
-	//if strings.Contains(file_path_on_endpoint, "AddInProcess32") {
-	//	fmt.Print("AddInProcess32 찾았습니다.")
-	//}
 	if !as.shareobject.Database.Check_exists_Binary_File(as.Agent_Controller.Output_AGENT_ID(), file_path_on_endpoint, fileSize) {
 
 		if binary, _, err := as.Agent_Controller.Request_Real_File(file_path_on_endpoint); err == nil {
@@ -332,6 +312,15 @@ func (as *Agent_Manager) request_file_analysis(base64 string, filesize uint32, s
 		},
 	})
 }
+
+// 네트워크 분석
+func (as *Agent_Manager) check_network_analysis(remote_ip string) {
+
+	if as.shareobject.AnalysisServer_Manager.Check_Analysis_Result_remote_ip(remote_ip) == false {
+		// 이 경우, 분석 서버 결과가 없다는 것을 확인.
+		go as.request_remote_ip_analysis(remote_ip) // 분석 전달
+	}
+}
 func (as *Agent_Manager) request_remote_ip_analysis(remote_ip string) {
 	// 분석 서버에 (파일) 분석 요청
 	as.shareobject.AnalysisServer_Manager.Request_Analysis(analysisserver.Request_Analysis_struct{
@@ -345,12 +334,7 @@ func (as *Agent_Manager) request_remote_ip_analysis(remote_ip string) {
 	})
 }
 
-type cycle_id_struct struct {
-	process_life_cycle_id             string
-	parent_process_life_cycle_id      string
-	root_parent_process_life_cycle_id string
-	root_is_running_by_user           bool
-}
+//
 
 // 엘라스틱 서치에 전달 (사실은 카프카에게 ..)
 func (as *Agent_Manager) send_to_elastic_search(

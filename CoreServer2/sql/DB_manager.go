@@ -15,9 +15,14 @@ type DB_Manager struct {
 
 func New_DB_Manager(serverIP string, port int, dbUser string, dbPassword string, dbname string) *DB_Manager {
 
+	MySQL_obj := New_Mysql(serverIP, port, dbUser, dbPassword, dbname)
+	if MySQL_obj == nil {
+		panic("DB 초기화 실패")
+	}
+
 	// 구조체 생성
 	core_control_db := DB_Manager{
-		DB:     New_Mysql(serverIP, port, dbUser, dbPassword, dbname),
+		DB:     MySQL_obj,
 		mutex_: &sync.Mutex{},
 	}
 

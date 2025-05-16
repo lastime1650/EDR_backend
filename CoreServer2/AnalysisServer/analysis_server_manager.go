@@ -94,7 +94,41 @@ func (as *AnalysisServer_Manager) Check_Analysis_Result_SHA256(sha256 string) bo
 	req_json := map[string]interface{}{
 		"SCRIPT_TYPE": string(FileType),
 		"DATA": map[string]interface{}{
-			"SHA256": sha256,
+			"sha256": sha256,
+		},
+	}
+
+	Parm := url.Values{}
+
+	Parm.Add("input_JSON", util.ERROR_PROCESSING(util.Map_to_JSON(req_json)))
+
+	if output, err := util.RestAPI_GET(req_url, &Parm); err == nil {
+
+		if output_map, err := util.JSON_to_Map(output); err == nil {
+
+			//fmt.Print(output_map)
+
+			return output_map["result"].(bool)
+
+		}
+
+		return false
+	}
+
+	return false
+}
+
+// remote_ip넘겨 분석되었는 지 확인
+func (as *AnalysisServer_Manager) Check_Analysis_Result_remote_ip(remote_ip string) bool {
+
+	//fmt.Print("sha256넘겨 분석되었는 지 확인")
+
+	req_url := fmt.Sprintf("http://%s:%d/API/Check_Analysis_Result", as.server_ip, as.server_port)
+
+	req_json := map[string]interface{}{
+		"SCRIPT_TYPE": string(NetworkType),
+		"DATA": map[string]interface{}{
+			"remote_ip": remote_ip,
 		},
 	}
 
