@@ -1,9 +1,9 @@
 # EDR_backend
-This repository is a backend resources for EDR
+LLM기반의 손쉬운 사용이 가능한 EDR 시스템
 
 <br>
 
-EDR 온라인 문서 -> [https://cominam-documents.gitbook.io/ai-edr-system](https://cominam-documents.gitbook.io/ai-edr-system)
+자세한 EDR 온라인 문서 -> [https://cominam-documents.gitbook.io/ai-edr-system](https://cominam-documents.gitbook.io/ai-edr-system)
 -------------------
 
 # Docker 이미지 기반 배포
@@ -28,6 +28,14 @@ EDR 온라인 문서 -> [https://cominam-documents.gitbook.io/ai-edr-system](htt
 
 -------------------
 <br>
+
+## 커널 에이전트 - C
+
+하위 github 링크에 있습니다.
+
+<br>
+
+[https://github.com/lastime1650/EDR_Kernel_Agent](https://github.com/lastime1650/EDR_Kernel_Agent)
 
 ## Core Server - >= Golang 1.23
 
