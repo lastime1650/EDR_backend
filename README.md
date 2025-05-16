@@ -65,8 +65,11 @@ How to work -> [https://cominam-documents.gitbook.io/ai-edr-system/edr/core-serv
 ```
   1차 개발 완료!
 ```
-file -> [https://github.com/lastime1650/EDR_backend/tree/main/AnalysisServer](https://github.com/lastime1650/EDR_backend/tree/main/AnalysisServer) <br>
-here is description -> [https://cominam-documents.gitbook.io/ai-edr-system/edr/analysis-server](https://cominam-documents.gitbook.io/ai-edr-system/edr/analysis-server)
+소스코드 -> [https://github.com/lastime1650/EDR_backend/tree/main/AnalysisServer](https://github.com/lastime1650/EDR_backend/tree/main/AnalysisServer) 
+
+<br>
+
+How to work -> [https://cominam-documents.gitbook.io/ai-edr-system/edr/analysis-server](https://cominam-documents.gitbook.io/ai-edr-system/edr/analysis-server)
 
 
 <br>
