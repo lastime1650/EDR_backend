@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EDR Dashboard</title>
+
+
+
+    <!-- Font Awesome 아이콘 라이브러리 (CDN 사용) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* === 기본 & 레이아웃 === */
+        :root {
+            --bg-dark: #1a1a1d;       /* 매우 어두운 배경 */
+            --bg-medium: #2c2f33;    /* 위젯 배경 */
+            --bg-light: #4f545c;     /* 약간 밝은 요소 */
+            --text-primary: #ffffff;  /* 기본 텍스트 */
+            --text-secondary: #b9bbbe; /* 보조 텍스트 */
+            --accent-purple: #7289da; /* 강조색 (샘플 보라색) */
+            --accent-green: #43b581;  /* 강조색 (성공, 온라인 등) */
+            --accent-red: #f04747;    /* 강조색 (위험, 오류 등) */
+            --accent-yellow: #faa61a; /* 강조색 (경고) */
+            --border-radius: 8px;
+            --sidebar-width: 70px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            display: flex; /* 사이드바와 메인 컨텐츠를 가로로 배치 */
+            min-height: 100vh;
+        }
+
+        .dashboard-container {
+            display: flex;
+            width: 100%;
+        }
+
+        /* === 사이드바 === */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--bg-medium);
+            padding: 15px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex-shrink: 0; /* 너비 고정 */
+        }
+
+        .sidebar-header .logo {
+            display: inline-block;
+            background-color: var(--accent-green); /* 샘플 M 로고 */
+            color: var(--text-primary);
+            font-weight: bold;
+            width: 40px;
+            height: 40px;
+            line-height: 40px;
+            text-align: center;
+            border-radius: 50%;
+            margin-bottom: 30px;
+        }
+
+        .sidebar-menu {
+            list-style: none;
+            width: 100%;
+        }
+
+        .sidebar-menu li {
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .sidebar-menu li a {
+            color: var(--text-secondary);
+            font-size: 1.4em;
+            display: block;
+            padding: 10px 0;
+            transition: color 0.3s ease, background-color 0.3s ease;
+            border-left: 3px solid transparent; /* 활성 상태 표시용 */
+        }
+
+        .sidebar-menu li.active a,
+        .sidebar-menu li a:hover {
+            color: var(--text-primary);
+            background-color: rgba(255, 255, 255, 0.05);
+            border-left-color: var(--accent-purple); /* 활성 탭 강조 */
+        }
+
+        /* === 메인 컨텐츠 === */
+        .main-content {
+            flex-grow: 1; /* 남은 공간 모두 차지 */
+            padding: 25px;
+            overflow-y: auto; /* 내용 많아지면 스크롤 */
+        }
+
+        /* == 메인 헤더 == */
+        .main-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .header-title h1 {
+            font-size: 1.8em;
+            margin-bottom: 5px;
+        }
+
+        .header-title p {
+            color: var(--text-secondary);
+            font-size: 0.9em;
+        }
+
+        .header-actions button {
+            background-color: var(--bg-medium);
+            color: var(--text-primary);
+            border: none;
+            padding: 10px 15px;
+            border-radius: var(--border-radius);
+            margin-left: 10px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            font-size: 0.9em;
+        }
+        .header-actions button:hover {
+            background-color: var(--bg-light);
+        }
+        .header-actions button i {
+            margin-right: 5px;
+        }
+        .header-actions button small {
+            display: block;
+            font-size: 0.8em;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+        .header-actions .add-widget {
+            font-size: 1.2em;
+            font-weight: bold;
+            padding: 8px 12px; /* 크기 조정 */
+        }
+
+        /* === 위젯 공통 === */
+        .widget-container, .widget-grid {
+            margin-bottom: 25px;
+        }
+
+        .widget {
+            background-color: var(--bg-medium);
+            border-radius: var(--border-radius);
+            padding: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2); /* 약간의 그림자 효과 */
+            margin-bottom: 20px; /* 그리드 없을 때 간격 */
+        }
+
+        .widget-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--bg-light); /* 헤더 구분선 */
+        }
+
+        .widget-header h3 {
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+
+        .widget-header i { /* 위젯 제목 아이콘 */
+            margin-right: 8px;
+            color: var(--accent-purple);
+        }
+
+        .widget-header .time-filter,
+        .widget-header .filter-btn {
+            background-color: var(--bg-light);
+            color: var(--text-secondary);
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.8em;
+            cursor: pointer;
+        }
+        .widget-header .filter-btn i { margin-right: 3px; }
+
+        .widget-nav button {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.2em;
+            cursor: pointer;
+            margin-left: 5px;
+        }
+
+        .widget-content {
+           min-height: 50px; /* 내용 없을 때 최소 높이 */
+           color: var(--text-secondary); /* 플레이스홀더 텍스트 색상 */
+        }
+
+        .learn-more {
+            background-color: var(--accent-purple);
+            color: var(--text-primary);
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 15px;
+            font-size: 0.9em;
+        }
+
+        /* === 위젯 레이아웃 (여기서는 단순 배치) === */
+        .full-width {
+            width: 100%;
+        }
+
+        /* 샘플 에이전트 상태 위젯 스타일 */
+        .agent-overview {
+            background: linear-gradient(135deg, var(--accent-purple) 0%, #5f73c3 100%); /* 샘플 보라색 그라데이션 */
+            color: var(--text-primary);
+        }
+        .agent-overview .widget-header { border-bottom-color: rgba(255,255,255,0.2); }
+        .agent-overview .widget-header h3,
+        .agent-overview .widget-header .time-filter { color: var(--text-primary); }
+        .agent-overview .time-filter { background-color: rgba(255,255,255,0.1); }
+        .agent-overview .widget-content { color: rgba(255,255,255,0.8); }
+        .agent-overview .status-change {
+            display: block;
+            text-align: right;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+
+        /* iframe 스타일 */
+        .geoip-widget iframe {
+            display: block; /* 아래 여백 제거 */
+            border: none; /* 테두리 제거 */
+            width: 100%; /* 너비 100% */
+        }
+
+        /* === Agent Button Styles === */
+        .agent-button-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px; /* 버튼 사이의 간격 */
+        }
+
+        .agent-button {
+            display: inline-flex; /* 내용을 가로로 배치하고 버튼 크기는 내용에 맞춤 */
+            align-items: center; /* 내용물 세로 중앙 정렬 */
+            background-color: var(--bg-light);
+            color: var(--text-primary);
+            padding: 10px 15px;
+            border-radius: var(--border-radius);
+            text-decoration: none;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+            border: 1px solid transparent;
+            cursor: pointer;
+            font-size: 0.9em;
+            /* agent-info 블록과 상태 배지 사이의 간격 */
+            gap: 15px; /* agent-info와 agent-status-badge 사이 간격 */
+        }
+
+        .agent-button:hover {
+            background-color: var(--accent-purple);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        /* 에이전트 정보 (ID와 OS) 컨테이너 스타일 */
+        .agent-info {
+            display: flex;
+            flex-direction: column; /* ID와 OS를 세로로 쌓음 */
+            /* 필요한 경우 여기에 추가적인 간격이나 정렬 스타일 적용 */
+        }
+
+        .agent-button .agent-id {
+            font-weight: 350;
+            margin-right: 0; /* 기존 margin-right 제거 */
+            margin-bottom: 3px; /* ID 아래에 작은 간격 추가 (선택 사항) */
+        }
+
+        .agent-button .agent-os {
+            color: var(--text-secondary);
+            margin-right: 0; /* 기존 margin-right 제거 */
+            font-size: 0.8em; /* OS 정보 글자 크기 살짝 줄임 (선택 사항) */
+        }
+
+        /* 상태 표시 배지 스타일 */
+        .agent-status-badge {
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+            text-transform: uppercase;
+            /* margin-left: auto; /* flex gap을 사용했으므로 필수는 아니지만, 혹시 모를 상황 대비 유지 */ */
+            flex-shrink: 0; /* 배지가 줄어들지 않도록 */
+        }
+
+        /* Online 상태 배지 스타일 */
+        .agent-status-badge.online {
+            background-color: var(--accent-green);
+            color: var(--text-primary);
+        }
+
+        /* Offline 상태 배지 스타일 */
+        .agent-status-badge.offline {
+            background-color: var(--accent-red);
+            color: var(--text-primary);
+        }
+
+
+    </style>
+
+    <!-- Chatbot CSS -->
+    <link rel="stylesheet" href="static/chatbot.css">
+
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- ==== 메인 컨텐츠 ==== -->
+        <main class="main-content">
+            <!-- == 상단 헤더 == -->
+            <header class="main-header">
+                <div class="header-title">
+                    <h1>Welcome, EDR User!</h1>
+                    <p>Monitor security events and manage endpoints.</p>
+                </div>
+            </header>
+
+            <!-- == 상단 바디 == -->
+
+            <div class="widget">
+                <div class="widget-header">
+                    <h3>에이전트 수집 현황</h3>
+                </div>
+                <div class="widget-container full-width">
+                    <div class="widget geoip-widget" style="padding: 0;"> <!-- iframe 꽉 채우기 위해 패딩 제거 -->
+                        <iframe
+                          src='http://{{ kibana_host }}:{{ kibana_port }}/app/dashboards#/view/b7d3a180-ec44-48e3-b0f4-8dc303a27d00?embed=true&_g=(refreshInterval%3A(pause%3A!f%2Cvalue%3A5000)%2Ctime%3A(from%3Anow-12h%2Cto%3Anow%2B12h))&hide-filter-bar=true'
+
+                          height=1300
+                          title="GEOIP Kibana Dashboard">
+                        </iframe>
+                    </div>
+                </div>
+            </div>
+
+            <!-- == 나머지 위젯 (단순 세로 배치 예시) == -->
+
+            <!-- 에이전트 조회 -->
+            <div class="widget">
+                <div class="widget-header">
+                    <h3>에이전트 목록</h3>
+                </div>
+
+                <!-- 에이전트 목록을 담을 컨테이너 -->
+                <div class="agent-button-list">
+                    {% if agent_list %}
+                        {% for agent in agent_list %}
+                            <!-- 각 에이전트를 버튼처럼 보이게 하는 링크 -->
+                            <a href="/Agent_Detail?agent_id={{ agent.agent_id }}" class="agent-button" data-agent-id="{{ agent.agent_id }}">
+                                <!-- 에이전트 정보 표시 -->
+                                <span class="agent-id">{{ agent.agent_id }}<br></span>
+                                <span class="agent-os">({{ agent.os }})</span>
+
+                                <!-- 상태 표시 (오른쪽에 배치) -->
+                                <!--<span class="agent-status-badge {{ 'online' if agent.status else 'offline' }}"> -->
+                                <!--    {{ agent.status }} -->
+                                <!--</span> -->
+                            </a>
+                        {% endfor %}
+                    {% else %}
+                        <!-- 에이전트가 없을 경우 메시지 표시 -->
+                        <p style="text-align: center; color: var(--text-secondary);">연결된 에이전트가 없습니다.</p>
+                    {% endif %}
+                </div>
+
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Chatbot Toggle Button -->
+    <div class="chat-toggle" id="chatToggle">
+      <!-- Font Awesome 아이콘 예시 -->
+      <i class="fas fa-comment" style="color: #131C24; font-size: 24px;"></i>
+    </div>
+
+    <!-- Chatbot Form (기존 코드) -->
+    <div class="chat-form" id="chatForm">
+      <div class="chat-header">Live Chat</div>
+      <div class="chat-body" id="chatBody">
+        <!-- 메시지 예시 -->
+        <div class="chat-message">
+          <span class="sender">Bot:</span>
+          <span class="message">안녕하세요! 무엇을 도와드릴까요?</span>
+        </div>
+      </div>
+      <div class="chat-input">
+        <input type="text" id="chatInput" placeholder="메시지를 입력하세요..." />
+      </div>
+    </div>
+
+</body>
+
+
+<script>
+    window.cookieValue = "{{ cookie }}"; // 쿠키 설정
+    window.websocket_connection_url = "{{ websocket_connection_url }}"; // 웹소켓 연결 URL
+</script>
+<script src="static/chatbot.js"></script>
+
+</html>

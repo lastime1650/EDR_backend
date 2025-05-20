@@ -1,0 +1,81 @@
+/* 챗봇 스타일 */
+  .chat-toggle {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background-color: #F4C753;
+    cursor: pointer;
+    z-index: 100;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .chat-form {
+    position: fixed;
+    bottom: 80px; /* 토글 버튼 바로 위에 위치 */
+    right: -550px; /* 초기에는 화면 오른쪽에 숨겨짐 */
+    width: 500px; /* 가로 길이 조정 */
+    height: 550px; /* 세로 길이 조정 */
+    background-color: #19242E;
+    border: 1px solid #29374C;
+    border-radius: 10px;
+    z-index: 99;
+    transition: right 0.5s ease-in-out; /* 부드러운 이동 애니메이션 */
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .chat-form.open {
+    right: 20px; /* 클릭 시 왼쪽으로 이동 */
+  }
+
+  .chat-header {
+      padding: 10px;
+      background-color: #29374C;
+      color: #F8F9FB;
+      border-bottom: 1px solid #29374C;
+      font-weight: bold;
+    }
+  .chat-body {
+    flex-grow: 1;
+    overflow-y: auto;
+    overflow-x: hidden; /* 가로 스크롤바 숨김 */
+    padding: 10px;
+    word-wrap: break-word; /* 긴 단어를 줄 바꿈 */
+  }
+  .chat-input {
+    padding: 10px;
+    border-top: 1px solid #29374C;
+  }
+  .chat-input input {
+    width: 100%;
+    padding: 5px;
+    border: 1px solid #29374C;
+    border-radius: 5px;
+    background-color: #131C24;
+    color: #F8F9FB;
+  }
+  .chat-message {
+    margin-bottom: 10px;
+  }
+  .chat-message .sender {
+    font-weight: bold;
+    color: #F4C753;
+  }
+  .chat-message .message {
+    background-color: #29374C;
+    color: #F8F9FB;
+    padding: 8px;
+    border-radius: 5px;
+    display: inline-block;
+    max-width: 80%;
+  }
+  .user .message {
+    background-color: #F4C753;
+    color: #131C24;
+  }

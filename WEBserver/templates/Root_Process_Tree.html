@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EDR Dashboard</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+     <script src="https://d3js.org/d3.v7.min.js"></script>
+
+    <!-- Font Awesome 아이콘 라이브러리 (CDN 사용) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+
+        .mermaid {
+          background-color: transparent !important; /* Mermaid 그래프 배경 투명하게 */
+        }
+         .mermaid-container {
+             overflow: auto; /* 컨테이너에 스크롤바 추가 */
+            border: 1px solid #ccc;
+            /* 컨테이너 자체의 크기를 지정해야 내부 .mermaid의 100%가 의미있어집니다. */
+            /* 예를 들어, height: 800px; width: 100%; */
+        }
+
+        /* --- 노드 세로 패딩 CSS --- */
+        .mermaid .node .label foreignObject > div {
+            box-sizing: border-box;
+            padding-top: 95px !important;    /* 값 조절 */
+            padding-bottom: 95px !important; /* 값 조절 */
+
+            /* --- 폰트 크기 추가 --- */
+            font-size: 70px !important; /* 원하는 폰트 크기로 조절 (예: 16px, 20px, 1.2em 등) */
+            /* --------------------- */
+        }
+        /* ------------------------ */
+
+        /* ID가 D327인 노드의 폰트 크기만 변경 */
+        .mermaid #D327 .label foreignObject > div {
+            font-size: 20px !important;
+        }
+
+        /* ID가 D328인 노드의 폰트 크기만 변경 */
+        .mermaid #D328 .label foreignObject > div {
+            font-size: 12px !important;
+        }
+
+
+        /* === 기본 & 레이아웃 === */
+        :root {
+            --bg-dark: #1a1a1d;       /* 매우 어두운 배경 */
+            --bg-medium: #2c2f33;    /* 위젯 배경, 사이드 패널 배경 */
+            --bg-light: #4f545c;     /* 약간 밝은 요소, 입력 필드 배경 */
+            --text-primary: #ffffff;  /* 기본 텍스트 */
+            --text-secondary: #b9bbbe; /* 보조 텍스트 */
+            --accent-purple: #7289da; /* 강조색 (샘플 보라색) */
+            --accent-green: #43b581;  /* 강조색 (성공, 온라인 등) */
+            --accent-red: #f04747;    /* 강조색 (위험, 오류 등) */
+            --accent-yellow: #faa61a; /* 강조색 (경고) */
+            --border-color: #444;     /* 테두리 색 */
+            --border-radius: 8px;
+            --sidebar-width: 70px;
+            --block-panel-width: 400px; /* 차단 패널 너비 변수 */
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            display: flex; /* 사이드바와 메인 컨텐츠를 가로로 배치 */
+            min-height: 100vh;
+            overflow-x: hidden; /* 오른쪽 패널 숨길 때 가로 스크롤 방지 */
+        }
+
+        .dashboard-container {
+            display: flex;
+            width: 100%;
+        }
+
+        /* === 사이드바 === */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--bg-medium);
+            padding: 15px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex-shrink: 0; /* 너비 고정 */
+            z-index: 100; /* 다른 요소 위에 있도록 */
+        }
+
+        .sidebar-header .logo {
+            display: inline-block;
+            background-color: var(--accent-green); /* 샘플 M 로고 */
+            color: var(--text-primary);
+            font-weight: bold;
+            width: 40px;
+            height: 40px;
+            line-height: 40px;
+            text-align: center;
+            border-radius: 50%;
+            margin-bottom: 30px;
+        }
+
+        .sidebar-menu {
+            list-style: none;
+            width: 100%;
+        }
+
+        .sidebar-menu li {
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .sidebar-menu li a {
+            color: var(--text-secondary);
+            font-size: 1.4em;
+            display: block;
+            padding: 10px 0;
+            transition: color 0.3s ease, background-color 0.3s ease;
+            border-left: 3px solid transparent; /* 활성 상태 표시용 */
+        }
+
+        .sidebar-menu li.active a,
+        .sidebar-menu li a:hover {
+            color: var(--text-primary);
+            background-color: rgba(255, 255, 255, 0.05);
+            border-left-color: var(--accent-purple); /* 활성 탭 강조 */
+        }
+
+        /* === 메인 컨텐츠 === */
+        .main-content {
+            flex-grow: 1; /* 남은 공간 모두 차지 */
+            padding: 25px;
+            overflow-y: auto; /* 내용 많아지면 스크롤 */
+            transition: margin-right 0.4s ease-in-out; /* 패널 열릴 때 메인 컨텐츠 밀기 효과 */
+        }
+
+        /* == 메인 헤더 == */
+        .main-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .header-title h1 {
+            font-size: 1.8em;
+            margin-bottom: 5px;
+        }
+
+        .header-title p {
+            color: var(--text-secondary);
+            font-size: 0.9em;
+        }
+
+        .header-actions button {
+            background-color: var(--bg-medium);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color); /* 테두리 추가 */
+            padding: 10px 15px;
+            border-radius: var(--border-radius);
+            margin-left: 10px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            font-size: 0.9em;
+        }
+        .header-actions button:hover {
+            background-color: var(--bg-light);
+        }
+        .header-actions button i {
+            margin-right: 5px;
+        }
+        .header-actions button small {
+            display: block;
+            font-size: 0.8em;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+        /* "+" 버튼 스타일 유지 (예시) */
+        .header-actions .add-widget {
+            font-size: 1.2em;
+            font-weight: bold;
+            padding: 8px 12px; /* 크기 조정 */
+        }
+        /* 차단 패널 열기 버튼 스타일 */
+        .header-actions .manual-block-btn {
+             background-color: var(--accent-red); /* 위험/차단 느낌 강조 */
+             border-color: var(--accent-red);
+        }
+         .header-actions .manual-block-btn:hover {
+             background-color: #d63030; /* 호버 시 약간 어둡게 */
+         }
+
+
+        /* === 위젯 공통 === */
+        .widget-container, .widget-grid {
+            margin-bottom: 25px;
+        }
+
+        .widget {
+            background-color: var(--bg-medium);
+            border-radius: var(--border-radius);
+            padding: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2); /* 약간의 그림자 효과 */
+            margin-bottom: 20px; /* 그리드 없을 때 간격 */
+        }
+
+        .widget-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--bg-light); /* 헤더 구분선 */
+        }
+
+        .widget-header h3 {
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+
+        .widget-header i { /* 위젯 제목 아이콘 */
+            margin-right: 8px;
+            color: var(--accent-purple);
+        }
+
+        .widget-header .time-filter,
+        .widget-header .filter-btn {
+            background-color: var(--bg-light);
+            color: var(--text-secondary);
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.8em;
+            cursor: pointer;
+        }
+        .widget-header .filter-btn i { margin-right: 3px; }
+
+        .widget-nav button {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.2em;
+            cursor: pointer;
+            margin-left: 5px;
+        }
+
+        .widget-content {
+           /* min-height: 50px; */ /* 내용 없을 때 최소 높이 - 필요시 주석 해제 */
+           color: var(--text-secondary); /* 플레이스홀더 텍스트 색상 */
+           overflow: visible;
+        }
+
+        .learn-more {
+            background-color: var(--accent-purple);
+            color: var(--text-primary);
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 15px;
+            font-size: 0.9em;
+        }
+
+        /* === 위젯 레이아웃 (여기서는 단순 배치) === */
+        .full-width {
+            width: 100%;
+        }
+
+        /* 샘플 에이전트 상태 위젯 스타일 */
+        .agent-overview {
+            background: linear-gradient(135deg, var(--accent-purple) 0%, #5f73c3 100%); /* 샘플 보라색 그라데이션 */
+            color: var(--text-primary);
+        }
+        .agent-overview .widget-header { border-bottom-color: rgba(255,255,255,0.2); }
+        .agent-overview .widget-header h3,
+        .agent-overview .widget-header .time-filter { color: var(--text-primary); }
+        .agent-overview .time-filter { background-color: rgba(255,255,255,0.1); }
+        .agent-overview .widget-content { color: rgba(255,255,255,0.8); }
+        .agent-overview .status-change {
+            display: block;
+            text-align: right;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+
+        /* iframe 스타일 */
+        .geoip-widget iframe {
+            display: block; /* 아래 여백 제거 */
+            border: none; /* 테두리 제거 */
+            width: 100%; /* 너비 100% */
+        }
+
+        /* === 수동 차단 오른쪽 패널 === */
+        .manual-block-panel {
+            position: fixed;
+            top: 0;
+            right: calc(-1 * var(--block-panel-width)); /* 초기 상태: 화면 밖에 위치 */
+            width: var(--block-panel-width);
+            height: 100vh;
+            background-color: var(--bg-medium);
+            z-index: 1050; /* 사이드바보다 위에 오도록 */
+            box-shadow: -3px 0 10px rgba(0, 0, 0, 0.3);
+            transition: right 0.4s ease-in-out;
+            display: flex;
+            flex-direction: column;
+            border-left: 1px solid var(--border-color);
+        }
+
+        .manual-block-panel.open {
+            right: 0; /* 열린 상태: 화면 오른쪽에 붙음 */
+        }
+
+        /* 메인 컨텐츠가 패널 열릴 때 밀리도록 (선택적) */
+        /* body.block-panel-open .main-content {
+            margin-right: var(--block-panel-width);
+        } */
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--bg-light);
+            flex-shrink: 0; /* 높이 고정 */
+        }
+
+        .panel-header h2 {
+            font-size: 1.2em;
+            margin: 0;
+        }
+
+        .panel-header .close-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.8em;
+            font-weight: bold;
+            cursor: pointer;
+            padding: 0 5px;
+            line-height: 1;
+        }
+        .panel-header .close-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .panel-content {
+            padding: 20px;
+            overflow-y: auto; /* 내용 많아지면 스크롤 */
+            flex-grow: 1; /* 남은 공간 채우기 */
+            display: flex;
+            gap: 25px; /* 폼 사이 간격 */
+        }
+
+        .block-form {
+            flex: 1; /* 각 폼이 절반씩 차지 */
+            display: flex;
+            flex-direction: column;
+        }
+        .block-form h3 {
+            font-size: 1em;
+            margin-bottom: 15px;
+            color: var(--text-primary);
+            border-bottom: 1px solid var(--bg-light);
+            padding-bottom: 8px;
+        }
+        .block-form label { /* 명시적 레이블 추가 시 스타일 */
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+            color: var(--text-secondary);
+        }
+        .block-form input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            background-color: var(--bg-light);
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            color: var(--text-primary);
+            margin-bottom: 15px;
+            font-size: 0.9em;
+        }
+         .block-form input[type="text"]:focus {
+             outline: none;
+             border-color: var(--accent-purple);
+             box-shadow: 0 0 0 2px rgba(114, 137, 218, 0.3); /* 포커스 시 강조 */
+         }
+
+        .block-form button[type="submit"] {
+            width: 100%;
+            padding: 10px 15px;
+            background-color: var(--accent-red);
+            color: var(--text-primary);
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.95em;
+            font-weight: 600;
+            transition: background-color 0.3s ease;
+            margin-top: auto; /* 버튼을 폼 하단에 위치 (flex 사용시) */
+        }
+        .block-form button[type="submit"]:hover {
+            background-color: #d63030;
+        }
+
+        
+    </style>
+    <link rel="stylesheet" href="static/chatbot.css">
+</head>
+<body>
+    <div class="dashboard-container">
+       
+
+        <!-- ==== 메인 컨텐츠 ==== -->
+        <main class="main-content">
+            <!-- == 상단 헤더 == -->
+            <header class="main-header">
+                <div class="header-title">
+                    <h1>프로세스 상세 페이지</h1>
+                    <p>{{root_process_cycle_id}} 에이전트에 대한 현황</p>
+                </div>
+                <div class="header-actions">
+                     <!-- 수동 차단 패널 열기 버튼 -->
+                    <button class="action-btn manual-block-btn" id="open-block-panel-btn">
+                        <i class="fas fa-ban"></i> 수동 차단
+                    </button>
+                    <button class="action-btn add-widget">+</button> <!-- 기존 "+" 버튼은 유지하거나 필요에 따라 제거 -->
+                </div>
+            </header>
+
+            <!-- == 상단 바디 == -->
+            <!-- == Mermaid 프로세스 Tree == -->
+            <div class="widget">
+                <div class="widget-header">
+                    <h3>TREE 구조</h3>
+                </div>
+                <div class="widget-content" style="overflow: visible;">
+                    <div class="mermaid-container">
+                        <div class="mermaid" style="max-height: 1170px;">
+                            %%{init: {
+                              'theme': 'base',
+                              'themeVariables': {
+                                'fontSize': '14px' // 이전 폰트 설정 유지 (필요시)
+                              },
+                              'flowchart': { // flowchart (graph) 관련 설정 추가
+                                'ranksep': 120,   // 레벨(수직) 간격 늘리기 (기본값은 보통 50, 값을 조절해보세요)
+                                'nodesep': 100    // 동일 레벨(수평) 노드 간격 늘리기 (기본값은 보통 50, 값을 조절해보세요)
+                              }
+                            }}%%
+                              {{mermaid_code}}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- == behavior 각 유형 결과 == -->
+             <!-- 프로세스 생성 -->
+            <div class="widget">
+                <div class="widget-header">
+                    <h3>Tree 전체 프로세스 이벤트</h3>
+                </div>
+                <div class="widget-container full-width">
+                    <div class="widget geoip-widget" style="padding: 0;">
+                        <iframe
+                          src='http://{{ kibana_host }}:{{ kibana_port }}/app/dashboards#/view/32f233e3-8a39-4875-a2da-a3bfe8c613bb?embed=true&_g=%28refreshInterval%3A%28pause%3A%21f%2Cvalue%3A120000%29%2Ctime%3A%28from%3Anow-100y%2Cto%3Anow%29%29&hide-filter-bar=true{{ query }}'
+                          height=6000
+                          title="Process Create Kibana Dashboard">
+                        </iframe>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ==== 수동 차단 오른쪽 패널 ==== -->
+    <aside class="manual-block-panel" id="manual-block-panel">
+        <div class="panel-header">
+            <h2><i class="fas fa-ban"></i> 수동 차단</h2>
+            <button class="close-btn" id="close-block-panel-btn">×</button>
+        </div>
+        <div class="panel-content">
+            <!-- 왼쪽: SHA256 기반 차단 -->
+            <div class="block-form sha256-block">
+                 <form id="sha256-block-form">
+                    <h3><i class="fas fa-file-alt"></i> 프로세스/파일 차단 (SHA256)</h3>
+                    <label for="sha256-input">SHA256 해시:</label>
+                    <input type="text" id="sha256-input" name="sha256" placeholder="차단할 파일 또는 프로세스의 SHA256 해시 입력" required>
+                    <button type="submit"><i class="fas fa-ban"></i> 해시 차단</button>
+                 </form>
+            </div>
+
+            <!-- 오른쪽: Remote IP 기반 차단 -->
+            <div class="block-form ip-block">
+                <form id="ip-block-form">
+                    <h3><i class="fas fa-network-wired"></i> 원격 IP 차단</h3>
+                    <label for="ip-input">원격 IP 주소:</label>
+                    <input type="text" id="ip-input" name="remoteip" placeholder="차단할 원격 IP 주소 입력 (예: 192.168.1.100)" required>
+                    <button type="submit"><i class="fas fa-ban"></i> IP 차단</button>
+                 </form>
+            </div>
+        </div>
+    </aside>
+
+    <!-- 필요한 JavaScript 코드는 여기에 추가 -->
+     <script>
+        // Mermaid 초기화 (기존 코드 유지)
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'base',
+            securityLevel: 'loose',
+            themeVariables: {
+                'primaryColor': '#CCFFCC',
+                'primaryTextColor': '#000',
+                'primaryBorderColor': '#7C7C7C',
+                'lineColor': '#F8F9FB',
+                'secondaryColor': '#006FFF',
+                'tertiaryColor': '#fff'
+            }
+        });
+
+        // Mermaid 콜백 함수 (기존 코드 유지)
+        function callback(nodeId) {
+          console.log("Received nodeId:", nodeId); // nodeId 확인 (flowchart- 형태인지 확인)
+          let nodeElement = document.querySelector(`.node#${nodeId} .nodeLabel`);
+          if (!nodeElement) {
+            nodeElement = document.querySelector(`.node#${nodeId} text`);
+          }
+          if (nodeElement && nodeElement.textContent) {
+            const nodeLabel = nodeElement.textContent.trim();
+            alert("Node ID: " + nodeId + "\nNode Label: " + nodeLabel);
+            // Assume Agent_ID is globally available or passed differently
+            // if (nodeLabel.length === 128 && typeof Agent_ID !== 'undefined'){
+            //   const redirectUrl = `/Instance_Detail?agent_id=${Agent_ID}&instance_id=${nodeLabel}`;
+            //   window.location.href = redirectUrl;
+            // }
+          } else {
+            alert("Node ID: " + nodeId + "\nCould not find node label.");
+          }
+        }
+
+        // D3 Zoom/Pan 및 노드 클릭 (기존 코드 유지)
+        window.addEventListener('load', function () {
+            setTimeout(() => {
+                try {
+                    const container = d3.select('.mermaid-container');
+                    const svgs = container.selectAll('.mermaid svg');
+
+                    if (svgs.empty()) {
+                        console.warn("D3: No Mermaid SVG found to apply zoom.");
+                        return;
+                    }
+
+                    svgs.each(function () {
+                        const svg = d3.select(this);
+                        const svgNode = svg.node();
+                        const initialViewBox = svgNode.viewBox.baseVal;
+                        const initialWidth = initialViewBox?.width || svgNode.width.baseVal?.value || svgNode.clientWidth;
+                        const initialHeight = initialViewBox?.height || svgNode.height.baseVal?.value || svgNode.clientHeight;
+
+                        console.log(`Initial SVG dimensions: ${initialWidth} x ${initialHeight}`);
+
+                        let inner = svg.select('g.zoom-pan-group');
+                        if (inner.empty()) {
+                            const content = svg.html();
+                            svg.html('');
+                            inner = svg.append('g')
+                                       .attr('class', 'zoom-pan-group')
+                                       .html(content);
+                        }
+
+                        const zoom = d3.zoom()
+                            .scaleExtent([0.1, 8])
+                            .on('zoom', function (event) {
+                                inner.attr('transform', event.transform);
+                            });
+
+                        svg.call(zoom)
+                           .on("dblclick.zoom", null);
+
+                        const nodes = inner.selectAll(".node");
+                        nodes.on("click", function(event, d) {
+                            event.stopPropagation();
+                            const nodeId = d3.select(this).attr("id");
+                            if (nodeId) {
+                                callback(nodeId);
+                            } else {
+                                console.warn("Clicked node has no ID attribute.");
+                            }
+                        });
+                        nodes.style("cursor", "pointer");
+                    });
+                } catch (error) {
+                    console.error("Error setting up D3 zoom/pan:", error);
+                }
+            }, 100); // Mermaid 렌더링 시간 고려
+
+            // --- 수동 차단 패널 제어 로직 ---
+            const openBtn = document.getElementById('open-block-panel-btn');
+            const closeBtn = document.getElementById('close-block-panel-btn');
+            const panel = document.getElementById('manual-block-panel');
+            // const mainContent = document.querySelector('.main-content'); // 메인 컨텐츠 밀기 효과용
+            // const body = document.body; // body 클래스 토글용
+
+            if (openBtn && closeBtn && panel) {
+                openBtn.addEventListener('click', () => {
+                    panel.classList.add('open');
+                    // body.classList.add('block-panel-open'); // 메인 컨텐츠 밀기 효과
+                });
+
+                closeBtn.addEventListener('click', () => {
+                    panel.classList.remove('open');
+                    // body.classList.remove('block-panel-open'); // 메인 컨텐츠 밀기 효과
+                });
+
+                // Optional: Close panel when clicking outside of it
+                // document.addEventListener('click', (event) => {
+                //     if (panel.classList.contains('open') && !panel.contains(event.target) && event.target !== openBtn) {
+                //         panel.classList.remove('open');
+                //         // body.classList.remove('block-panel-open');
+                //     }
+                // });
+            }
+
+            // --- 폼 제출 핸들링 (기본 동작 방지 및 콘솔 로그 예시) ---
+            const sha256Form = document.getElementById('sha256-block-form');
+            const ipForm = document.getElementById('ip-block-form');
+
+            if(sha256Form) {
+                sha256Form.addEventListener('submit', (event) => {
+                    event.preventDefault(); // 폼 기본 제출 방지
+                    const sha256Value = document.getElementById('sha256-input').value;
+                    console.log(`SHA256 Block Requested: ${sha256Value}`);
+                    alert(`SHA256 차단 요청: ${sha256Value}\n(실제 차단 로직은 백엔드에서 구현해야 합니다.)`);
+                    // 여기에 실제 차단 API 호출 로직 추가
+                });
+            }
+
+            if(ipForm) {
+                ipForm.addEventListener('submit', (event) => {
+                    event.preventDefault(); // 폼 기본 제출 방지
+                    const ipValue = document.getElementById('ip-input').value;
+                    console.log(`IP Block Requested: ${ipValue}`);
+                     alert(`IP 차단 요청: ${ipValue}\n(실제 차단 로직은 백엔드에서 구현해야 합니다.)`);
+                    // 여기에 실제 차단 API 호출 로직 추가
+                });
+            }
+
+        }); // End of window.addEventListener('load')
+    </script>
+
+
+
+    <!-- Chatbot Toggle Button -->
+    <div class="chat-toggle" id="chatToggle">
+        <!-- Font Awesome 아이콘 예시 -->
+        <i class="fas fa-comment" style="color: #131C24; font-size: 24px;"></i>
+    </div>
+  
+      <!-- Chatbot Form (기존 코드) -->
+      <div class="chat-form" id="chatForm">
+        <div class="chat-header">Live Chat</div>
+        <div class="chat-body" id="chatBody">
+          <!-- 메시지 예시 -->
+          <div class="chat-message">
+            <span class="sender">Bot:</span>
+            <span class="message">안녕하세요! 무엇을 도와드릴까요?</span>
+          </div>
+        </div>
+        <div class="chat-input">
+          <input type="text" id="chatInput" placeholder="메시지를 입력하세요..." />
+        </div>
+      </div>
+
+    <script>
+        window.cookieValue = "{{ cookie }}"; // 쿠키 설정
+        window.websocket_connection_url = "{{ websocket_connection_url }}"; // 웹소켓 연결 URL
+    </script>
+    <script src="static/chatbot.js"></script>
+
+
+</body>
+</html>
