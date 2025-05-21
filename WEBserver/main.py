@@ -322,21 +322,19 @@ t = WebServer(
 )
 
 # TEST
-'''from BehaviorAnalyzerManagement.SigmaManagement.Sigma_Manager import Sigma_Manager, SigmaTargetEnum
+'''from BehaviorAnalyzerManagement.SigmaManagement.Sigma_Manager import Sigma_Manager, SigmaTargetEndpoint
 t.BehaviorAnalzer.Start_Behavior_Analyzer(
-    endpoint_type=SigmaTargetEnum.windows,
+    endpoint_type=SigmaTargetEndpoint.windows,
     agent_id="d7dbf53c4007173122ff65cbba4a1cf103277eb91f3c366a534ed37a942e363cdd7367ef18dc11d0386b84797a660c558f3b76fa97e2b497928b2b61f73fdccf",
-    root_process_id="e83cdb681b249e2ef0d51118c3b42d802b729cdabaa34ad3db1156c217413ac614ec91aaae72178c280bbade5d58edb1623c32e94846c8a37f68b3d2b274ad95"
+    root_process_id="7156ea5741c56fe0c0e725d0ef53bd199766ce60df2218d9bdaa4e05bfaa8ef2420da070c1bc228f89c456e9915979fb4dc99021f7f6e9c1fc3c3be98f7e4697"
 )'''
 
-from BehaviorAnalyzerManagement.SigmaManagement.Sigma_Manager import Sigma_Manager, SigmaTargetEnum
-t.Sigma_Manager.Process_Creation(
-    target=SigmaTargetEnum.windows,
+from BehaviorAnalyzerManagement.SigmaManagement.Sigma_Manager import Sigma_Manager, SigmaTargetEndpoint
+t.Sigma_Manager.Sigma_Analysis(
+    target=SigmaTargetEndpoint.windows,
     agent_id="d7dbf53c4007173122ff65cbba4a1cf103277eb91f3c366a534ed37a942e363cdd7367ef18dc11d0386b84797a660c558f3b76fa97e2b497928b2b61f73fdccf",
-    root_process_id="e83cdb681b249e2ef0d51118c3b42d802b729cdabaa34ad3db1156c217413ac614ec91aaae72178c280bbade5d58edb1623c32e94846c8a37f68b3d2b274ad95",
-    self_process_Image="C:\\Windows\\System32\\cmd.exe",
-    self_process_CommandLine="cmd.exe /c echo hello > file.txt",
-    parent_process_Image="C:\\Windows\\System32\\cmd.exe"
+    root_process_id="7156ea5741c56fe0c0e725d0ef53bd199766ce60df2218d9bdaa4e05bfaa8ef2420da070c1bc228f89c456e9915979fb4dc99021f7f6e9c1fc3c3be98f7e4697",
+
 )
 
 #t.EDR_Manager.Get_Processes(agent_id="d7dbf53c4007173122ff65cbba4a1cf103277eb91f3c366a534ed37a942e363cdd7367ef18dc11d0386b84797a660c558f3b76fa97e2b497928b2b61f73fdccf")
@@ -345,7 +343,7 @@ t.Sigma_Manager.Process_Creation(
 # TEST CODE   
 
 '''tree, graph = t.EDR_Manager.Get_Process_Tree(
-    root_process_id="e83cdb681b249e2ef0d51118c3b42d802b729cdabaa34ad3db1156c217413ac614ec91aaae72178c280bbade5d58edb1623c32e94846c8a37f68b3d2b274ad95"
+    root_process_id="7156ea5741c56fe0c0e725d0ef53bd199766ce60df2218d9bdaa4e05bfaa8ef2420da070c1bc228f89c456e9915979fb4dc99021f7f6e9c1fc3c3be98f7e4697"
 )
 
 print(tree)

@@ -1,0 +1,33 @@
+id: 9c1b3a4d-5e6f-4a7b-8c8d-2e4f6a8b0c9d
+title: Suspicious Registry Modification via CMD
+description: Detects suspicious registry modification using cmd.exe, potentially indicating persistence mechanism setup.
+author: EDR
+date: 2024/01/04
+modified: 2024/01/04
+status: stable
+
+logsource:
+    category: process_creation
+    product: windows
+    service: sysmon
+
+detection:
+    selection:
+        Image|endswith: '\cmd.exe'
+        CommandLine|contains: 'REG ADD'
+        CommandLine|contains: 'HKCU\Software\Microsoft\Windows\CurrentVersion\Run'
+
+    condition: selection
+
+level: medium
+
+tags:
+    - attack.persistence
+    - attack.t1060
+
+falsepositives:
+    - Legitimate software installations or updates.
+    - System administrators using command-line tools for configuration.
+
+references:
+    - https://attack.mitre.org/techniques/T1060/

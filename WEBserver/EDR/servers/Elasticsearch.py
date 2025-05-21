@@ -22,33 +22,43 @@ class ElasticsearchAPI():
         else:
             return result["aggregations"]
         
+    def EQL_Query(self, eql_query:str, dsl_filter:Optional[dict], index:str)->Optional[list]:
+        
+        #print(f"EQL Query -> {eql_query} // dsl_filter -> {dsl_filter} // index -> {index}")
+        
+        
+        # dsl_filter 입력 구조는 최상위 filter key는 필요없음 search시 자동으로 붙음
+        
+        result = self.es.eql.search(
+            query=eql_query,
+            
+            filter=dsl_filter,
+            
+            index=index,
+        )
+        
+        '''
+        {
+            "hits":{
+                "events":[_source... 결과들] -------------> hits가 아닌 [hits][events]임. ( es.search 의 [hits][hits]와 다름)
+            }
+        }
+        '''
+        
+        # result 파싱
+
+        if len(result["hits"]["events"]) == 0:
+            return None
+        else:
+            return result["hits"]["events"]
+        
       
     
     def Check_Exist_Index_Template(self, index_name:str)->bool:
         return self.es.indices.exists_index_template(index=index_name)
     
     # - 유틸
-    # 쿼리 생성
-    def make_eql_query__(self, eql:str, agent_id:str, root_process_id:str)->dict:
-        return {
-            "query": eql,
-            "filter":{
-                "bool":{
-                    "filter": [
-                        {
-                            "term": {
-                                "categorical.Agent_Id": agent_id
-                            }
-                        },
-                        {
-                            "term": {
-                                "categorical.process_info.Root_Parent_Process_Life_Cycle_Id": root_process_id
-                            }
-                        }
-                    ]
-                }
-            }
-        }
+    
 
 '''es = ElasticsearchAPI(
     host = "192.168.0.1",
