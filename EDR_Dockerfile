@@ -72,8 +72,12 @@ WORKDIR /
 
 # 1. Core Server ( EDR )
 # 2. Analysis Server ( EDR )
+# 3. WEB server
 
 # CMD ["/bin/bash", "-c", "/CoreServer/run_coreserver & python3 /docker__AnalysisServer/main.py &  " ]
 
 
-CMD ["/bin/bash", "-c", "/CoreServer/run_coreserver & python3 /docker__AnalysisServer/main.py & python3 /docker__WEBserver/main.py"]
+CMD ["/bin/bash", "-c", "/CoreServer/run_coreserver & python3 /docker__AnalysisServer/main.py"] 
+
+
+# # & python3 /docker__WEBserver/main.py"]

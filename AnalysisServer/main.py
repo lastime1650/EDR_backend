@@ -74,24 +74,15 @@ class _Analysis_Server_:
         
         # 비동기 분석 / 결과는 ElasticSearch에 저장.
         
-        # 성능 문제로 스레드 생성 횟수 제한
-        while True:
-            with self.ScriptManager.thread_limit_lock:
-                if self.ScriptManager.current_thread_count >= self.ScriptManager.thread_limit:
-                    continue
-                
-                self.ScriptManager.current_thread_count += 1
-                
-                threading.Thread(
-                    target= self.ScriptManager.Start_Analysis,
-                    args=(
-                        Script_Type,
-                        DATA
-                    )
-                ).start()
-                break
+        # 큐에 전달
+        self.ScriptManager.Analysis_Start_Queue.put(
+            {
+                "script_type": Script_Type,
+                "DATA": DATA
+            }
+        )
         
-        return {"status":"success", "message":"성공"}
+        return {"status":"success", "message":"요청성공"}
     
     # 분석 완료 확인
     async def Check_Analysis_Result(self, input_JSON:Optional[str] = Query(None)):
@@ -184,6 +175,8 @@ REQUEST_DICT = {}
 
 # 파일 유형
 SAMPLE_PATH = "/docker__AnalysisServer/script_samples/file/sample_file.py" # /docker__AnalysisServer -> 도커파일 - 절대경로
+
+#SAMPLE_PATH = "script_samples/file/sample_file.py"
 SAMPLE_PYTHON_CODE = str( open(SAMPLE_PATH, 'r', encoding='utf-8').read() ) # 스크립트니까 사람이 읽을 수 잇음
 REQUEST_DICT = {
     "SCRIPT_NAME": "default1",
@@ -200,6 +193,7 @@ print(r)
 
 # 네트워크 유형
 SAMPLE_PATH = "/docker__AnalysisServer/script_samples/network/sample_network.py" # /docker__AnalysisServer -> 도커파일 - 절대경로
+#SAMPLE_PATH = "script_samples/network/sample_network.py"
 SAMPLE_PYTHON_CODE = str( open(SAMPLE_PATH, 'r', encoding='utf-8').read() ) # 스크립트니까 사람이 읽을 수 잇음
 REQUEST_DICT = {
     "SCRIPT_NAME": "default2",

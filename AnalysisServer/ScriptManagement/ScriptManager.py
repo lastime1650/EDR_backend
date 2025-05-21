@@ -21,9 +21,7 @@ from ScriptManagement.elasticsearch_.save_to_elasticsearch import Analysis_Elast
 class ScriptManager:
     def __init__(self, elasticsearch_host:str, elasticsearch_port:int):
         
-        self.current_thread_count = 0
-        self.thread_limit = 3
-        self.thread_limit_lock = threading.Lock()
+       
         
         self.scripts = {}
         self.scripts_mutex = threading.Lock()
@@ -34,6 +32,9 @@ class ScriptManager:
             elastichost=elasticsearch_host,
             elasticport=elasticsearch_port,
         )
+        
+        self.Analysis_Start_Queue = queue.Queue()
+        threading.Thread(target=self.Start_Analysis,daemon=True).start()
         
         self.remove_script_name_queue:List[str] = [] # 삭제 요청 대기 큐 (script 이름을 전달)
         self.remove_script_name_queue_mutex = threading.Lock()
@@ -149,79 +150,83 @@ class ScriptManager:
     
     ##########################
     
-    def Start_Analysis(self, script_type:Script_Packages_type_enum, DATA  ) :
-            
+    def Start_Analysis(self, ):#script_type:Script_Packages_type_enum, DATA  ) :
         
-        if DATA == None:
-            with self.thread_limit_lock:
-                self.current_thread_count -= 1
-            return
-
-        queue_list:list[queue.Queue] = []
-
-        using_scripts = []  # 참조 해제 시 정확히 사용된 스크립트 목록
-        print(f"스크립트 분석 시작!")
-        with self.scripts_mutex:
-            for script_name in self.scripts:
-
-                # 블랙리스트 스크립립트는 제외하고, 타입이 다른 스크립트는 제외한다.
-                if self.scripts[script_name]["type"] != script_type.name:
-                    continue
-                
-                queue_instance = queue.Queue()
-
-                queue_list.append( self.scripts[script_name]["module"].Start_Analysis(self.ToolManager, queue_instance, DATA) ) # 분석 유형 일치한 스크립트 실행
-
-                using_scripts.append(script_name)
-                
-                # 참조 카운트 증가 (필수적)
-                self.scripts[script_name]["reference_count"] += 1
-
-        if len(queue_list) > 0:
-
-            # 모두 완료할 때까지 대기
-            result:list[dict] = []
-            for q in queue_list:
-                
-                try:
-                    data = q.get() 
-                    
-                    if not data:
-                        continue
-                    elif isinstance(data, Exception):
-                        continue
-                    elif isinstance(data, dict):
-                        result.append( data )
-                except:
-                    continue
- 
+        
+        # 단일 스레드 분석 수행 (과부하 방지)
+        while True:
+            request:Optional[dict] = self.Analysis_Start_Queue.get()
             
-            if len(result) > 0:
+            if request == None:
+                continue
+            
+            script_type:Script_Packages_type_enum = request["script_type"]
+            DATA:dict = request["DATA"]
+            
+            # 분석 완료 확인
+            if self.Get_Analysis_Result_(script_type=script_type, DATA=DATA):
+                # 이미 분석 완료된 경우 skip
+                continue
+            
+            if DATA == None:
+                continue
 
-                # 분석 결과 가져오기 성공
+            queue_list:list[queue.Queue] = []
 
-                # ElasticSearch에 저장 ( mutex 필요 )
-                with self.Analysis_ElasticSearch.mutex_:
-                    self.save_to_elasticsearch(
-                        SCRIPT_TYPE=script_type,
-                        DATA=DATA,
-                        analyzed_results=result
-                    )
+            using_scripts = []  # 참조 해제 시 정확히 사용된 스크립트 목록
+            print(f"스크립트 분석 시작!")
+            with self.scripts_mutex:
+                for script_name in self.scripts:
 
-            else:
-                print("분석결과가 하나도 없음")
-                with self.thread_limit_lock:
-                    self.current_thread_count -= 1
-                return
+                    # 블랙리스트 스크립립트는 제외하고, 타입이 다른 스크립트는 제외한다.
+                    if self.scripts[script_name]["type"] != script_type.name:
+                        continue
+                    
+                    queue_instance = queue.Queue()
 
-        # 참조 카운트 감소 (필수적)
-        with self.scripts_mutex:
-            for script_name in using_scripts:
-                self.scripts[script_name]["reference_count"] -= 1
+                    queue_list.append( self.scripts[script_name]["module"].Start_Analysis(self.ToolManager, queue_instance, DATA) ) # 분석 유형 일치한 스크립트 실행
 
-        with self.thread_limit_lock:
-                self.current_thread_count -= 1
-        return
+                    using_scripts.append(script_name)
+                    
+                    # 참조 카운트 증가 (필수적)
+                    self.scripts[script_name]["reference_count"] += 1
+
+            if len(queue_list) > 0:
+
+                # 모두 완료할 때까지 대기
+                result:list[dict] = []
+                for q in queue_list:
+                    
+                    try:
+                        data = q.get() 
+                        
+                        if not data:
+                            continue
+                        elif isinstance(data, Exception):
+                            continue
+                        elif isinstance(data, dict):
+                            result.append( data )
+                    except:
+                        continue
+    
+                
+                if len(result) > 0:
+
+                    # 분석 결과 가져오기 성공
+
+                    # ElasticSearch에 저장 ( mutex 필요 )
+                    with self.Analysis_ElasticSearch.mutex_:
+                        self.save_to_elasticsearch(
+                            SCRIPT_TYPE=script_type,
+                            DATA=DATA,
+                            analyzed_results=result
+                        )
+
+            # 참조 카운트 감소 (필수적)
+            with self.scripts_mutex:
+                for script_name in using_scripts:
+                    self.scripts[script_name]["reference_count"] -= 1
+            
     
     def save_to_elasticsearch(
         self,
@@ -270,7 +275,15 @@ class ScriptManager:
     def Get_Analysis_Result_(self, script_type:str,  DATA:dict)->Optional[bool]:
 
         if script_type == Script_Packages_type_enum.file.name:
-            sha256 = str(DATA["sha256"]).lower()
+            
+            sha256 = ""
+            
+            if "sha256" in DATA:
+                sha256 = str(DATA["sha256"]).lower()
+            elif "binary" in DATA:
+                sha256 = hashlib.sha256(  base64.b64decode(DATA["binary"]) ).hexdigest()
+            else:
+                raise Exception("분석 데이터에 sha256값이 없습니다.")
 
             # 엘라스틱서치 를 통해 sha256 조회
             return self.Analysis_ElasticSearch.is_document_exist_from_FILE(

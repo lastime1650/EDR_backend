@@ -96,7 +96,7 @@ func (as *Agent_Manager) Start_Agent_Communication() {
 				}
 
 				// go루틴 병렬 파싱/솔루션 전송 처리
-				as.send_agent_log(recv_data)
+				go as.send_agent_log(recv_data)
 
 			} else {
 				// loop 데이터 요청 실패

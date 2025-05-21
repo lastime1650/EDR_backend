@@ -329,13 +329,13 @@ t.BehaviorAnalzer.Start_Behavior_Analyzer(
     root_process_id="7156ea5741c56fe0c0e725d0ef53bd199766ce60df2218d9bdaa4e05bfaa8ef2420da070c1bc228f89c456e9915979fb4dc99021f7f6e9c1fc3c3be98f7e4697"
 )'''
 
-from BehaviorAnalyzerManagement.SigmaManagement.Sigma_Manager import Sigma_Manager, SigmaTargetEndpoint
+'''from BehaviorAnalyzerManagement.SigmaManagement.Sigma_Manager import Sigma_Manager, SigmaTargetEndpoint
 t.Sigma_Manager.Sigma_Analysis(
     target=SigmaTargetEndpoint.windows,
     agent_id="d7dbf53c4007173122ff65cbba4a1cf103277eb91f3c366a534ed37a942e363cdd7367ef18dc11d0386b84797a660c558f3b76fa97e2b497928b2b61f73fdccf",
     root_process_id="7156ea5741c56fe0c0e725d0ef53bd199766ce60df2218d9bdaa4e05bfaa8ef2420da070c1bc228f89c456e9915979fb4dc99021f7f6e9c1fc3c3be98f7e4697",
 
-)
+)'''
 
 #t.EDR_Manager.Get_Processes(agent_id="d7dbf53c4007173122ff65cbba4a1cf103277eb91f3c366a534ed37a942e363cdd7367ef18dc11d0386b84797a660c558f3b76fa97e2b497928b2b61f73fdccf")
 
