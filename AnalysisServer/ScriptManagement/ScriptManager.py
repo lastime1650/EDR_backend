@@ -22,6 +22,8 @@ class ScriptManager:
     def __init__(self, elasticsearch_host:str, elasticsearch_port:int):
         
        
+        self.analysis_mutex = threading.Lock()
+        
         
         self.scripts = {}
         self.scripts_mutex = threading.Lock()
@@ -32,9 +34,6 @@ class ScriptManager:
             elastichost=elasticsearch_host,
             elasticport=elasticsearch_port,
         )
-        
-        self.Analysis_Start_Queue = queue.Queue()
-        threading.Thread(target=self.Start_Analysis,daemon=True).start()
         
         self.remove_script_name_queue:List[str] = [] # 삭제 요청 대기 큐 (script 이름을 전달)
         self.remove_script_name_queue_mutex = threading.Lock()
@@ -150,26 +149,19 @@ class ScriptManager:
     
     ##########################
     
-    def Start_Analysis(self, ):#script_type:Script_Packages_type_enum, DATA  ) :
+    def Start_Analysis(self, script_type:Script_Packages_type_enum, DATA  ) :
         
         
-        # 단일 스레드 분석 수행 (과부하 방지)
-        while True:
-            request:Optional[dict] = self.Analysis_Start_Queue.get()
-            
-            if request == None:
-                continue
-            
-            script_type:Script_Packages_type_enum = request["script_type"]
-            DATA:dict = request["DATA"]
+        with self.analysis_mutex :
+            # 멀티 스레드 처리
             
             # 분석 완료 확인
             if self.Get_Analysis_Result_(script_type=script_type, DATA=DATA):
                 # 이미 분석 완료된 경우 skip
-                continue
+                return
             
             if DATA == None:
-                continue
+                return
 
             queue_list:list[queue.Queue] = []
 
@@ -208,13 +200,15 @@ class ScriptManager:
                             result.append( data )
                     except:
                         continue
-    
+
                 
                 if len(result) > 0:
 
                     # 분석 결과 가져오기 성공
 
                     # ElasticSearch에 저장 ( mutex 필요 )
+                    # 단일 처리 전송.
+                    print("ELK에 전달합니다...")
                     with self.Analysis_ElasticSearch.mutex_:
                         self.save_to_elasticsearch(
                             SCRIPT_TYPE=script_type,

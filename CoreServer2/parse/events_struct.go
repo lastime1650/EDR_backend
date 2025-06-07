@@ -93,7 +93,7 @@ func New_Default_Event_struct(Input_Agent_data *Deserialization_struct) *Default
 			Parsed_by_Command["Process_EXE_NAME"] = strings.ReplaceAll(string(Tmp_Dyn_Data[3].([]byte)), "\\\\", "\\")
 			Parsed_by_Command["Process_SHA256"] = string(Tmp_Dyn_Data[4].([]byte))
 			Parsed_by_Command["Process_FILE_SIZE"] = util.ERROR_PROCESSING(util.Bytes_to_UInt32(Tmp_Dyn_Data[5].([]byte)))
-
+			fmt.Printf("프로세스 생성 -> %s\n", Parsed_by_Command["Process_EXE_NAME"])
 			//if Dyn_Data_Length >= 8 {
 			Parsed_by_Command["Parent_EXE_NAME"] = strings.ReplaceAll(string(Tmp_Dyn_Data[6].([]byte)), "\\\\", "\\")
 			Parsed_by_Command["Parent_SHA256"] = string(Tmp_Dyn_Data[7].([]byte))

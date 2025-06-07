@@ -66,7 +66,8 @@ def Network__aggregation_query____(process_cycle_id:str)->dict:
                             "_source": {
                                 # 필요한 geoip 필드만 선택적으로 가져옴
                                 "includes": [
-                                    "unique.process_behavior_events.network.geoip"
+                                    "unique.process_behavior_events.network.geoip",
+                                    "common.Timestamp"
                                 ]
                             }
                         }
@@ -122,7 +123,7 @@ def FileSystem__aggregation_query____(process_cycle_id:str)->dict:
                           {"_count": {"order": "desc"}},
                             { "max_timestamp": { "order": "desc" } }
                       ],
-                        "size": 100
+                        "size": 2000
                     }
                   },
                 }
@@ -172,7 +173,52 @@ def Registry__aggregation_query____(process_cycle_id:str)->dict:
                                 {"_count": {"order": "desc"}},
                                 {"max_timestamp": {"order": "desc"}}
                             ],
-                            "size": 200
+                            "size": 2000
+                        },
+
+                    },
+                }
+            },
+
+        },
+        "size": 0,
+    }
+
+def ImageLoad__aggregation_query____(process_cycle_id:str)->dict:
+    return {
+        "query": {
+            "bool": {
+                "filter": [
+                    {
+                        "term": {
+                            "categorical.process_info.Process_Life_Cycle_Id": process_cycle_id
+                        }
+                    }
+                ]
+            }
+        },
+        "aggs": {
+            "imageload_event_aggregation": {  # 파일 경로 로 나눔 (집계 )
+                "composite": {
+                    "size": 10000,
+                    "sources": [
+                        # 이미지 SHA256 나눔
+                        { "RegistryKey": { "terms": { "field": "unique.process_behavior_events.image_load.ImageSHA256" } } },
+                    ]
+                },
+                "aggs": {
+                    "max_timestamp": {
+                        "max": {
+                            "field": "common.Timestamp"
+                        }
+                    },
+                    "bucket_order": {
+                        "bucket_sort": {
+                            "sort": [
+                                {"_count": {"order": "desc"}},
+                                {"max_timestamp": {"order": "desc"}}
+                            ],
+                            "size": 2000
                         },
 
                     },
@@ -189,13 +235,43 @@ def Output___Process_Behavior_Aggregation(ProcessCycleId:int, es: ElasticsearchA
     output = []
     
     # 네트워크
-    output.append(
-        {
-            "network": es.Query(
+    network_outputs = es.Query(
                             query=Network__aggregation_query____(ProcessCycleId),
                             index=INDEX_PATTERN,
                             is_aggs=True
                         )["network_event_aggregation"]["buckets"]
+    networks:list[dict] = []
+    if len(network_outputs) > 0:
+        for network in network_outputs:
+            
+            
+            for ports in network["ports"]["buckets"]:
+                port_num = ports["key"]
+                for protocols in ports["protocols"]["buckets"]:
+                    protocol = protocols["key"]
+                    for bounds in protocols["bounds"]["buckets"]:
+                        bound = bounds["key"]
+                    
+                        earlist_timestamp = bounds["earlist_timestamp"]["value_as_string"]
+            
+                        networks.append(
+                            {
+                                
+                                "key": {
+                                    "remoteip": network["key"],
+                                    "port_num": port_num,
+                                    "protocol": protocol,
+                                    "bound": bound,
+                                    "geoip": network["representative_geoip"]['hits']['hits'][0]['_source']
+                                },
+                                "max_timestamp": {"value_as_string": earlist_timestamp},
+                                
+                            }
+                        )
+        
+    output.append(
+        {
+            "network": networks
         }
         
     )
@@ -219,6 +295,17 @@ def Output___Process_Behavior_Aggregation(ProcessCycleId:int, es: ElasticsearchA
                             index=INDEX_PATTERN,
                             is_aggs=True
                         )["file_system_event_aggregation"]["buckets"]
+        }
+    )
+    
+    # 이미지 로드
+    output.append(
+        {
+            "imageload":es.Query(
+                            query=ImageLoad__aggregation_query____(ProcessCycleId),
+                            index=INDEX_PATTERN,
+                            is_aggs=True
+                        )["imageload_event_aggregation"]["buckets"]
         }
     )
     

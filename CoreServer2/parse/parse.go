@@ -124,73 +124,13 @@ func To_Deserialization(data []byte) ([]Deserialization_struct, error) {
 				current_index = last_index
 				last_index += dyn_data_length
 				//fmt.Printf("최근 command %v\n", output.Command)
-				output.Dyn_data = append(output.Dyn_data, data[current_index:last_index])
-				/*
 
-					fmt.Println(string(data[current_index:last_index]), isASCII(data[current_index:last_index]))
+				dyn_data := data[current_index:last_index]
+				copied_dyn_data := make([]byte, len(dyn_data))
+				copy(copied_dyn_data, dyn_data)
 
-					// 정수 변환 시도 -> 문자열 최종 변환
-					// uint64 로 변환 시도
-					if dyn_data_length == 8 {
+				output.Dyn_data = append(output.Dyn_data, copied_dyn_data) // 동적 데이터 삽입
 
-						output_uint64, err3 := util.Bytes_to_UInt64(data[current_index:last_index])
-						if err3 != nil {
-							// 문자열로 변환
-							output.Dyn_data = append(output.Dyn_data, string(data[current_index:last_index]))
-							//return []Deserialization_struct{}, err3
-						} else {
-							output.Dyn_data = append(output.Dyn_data, output_uint64)
-						}
-
-					} else {
-						// uint32 로 변환 시도
-						if dyn_data_length == 4 {
-							output_uint32, err4 := util.Bytes_to_UInt32(data[current_index:last_index])
-							if err4 != nil {
-								// 문자열로 변환
-								output.Dyn_data = append(output.Dyn_data, string(data[current_index:last_index]))
-								//return []Deserialization_struct{}, err4
-							} else {
-								output.Dyn_data = append(output.Dyn_data, output_uint32)
-							}
-						} else {
-							// 최종-수단::byte그 자체로 저장한다.
-							output.Dyn_data = append(output.Dyn_data, []byte(data[current_index:last_index]))
-						}
-					}
-				*/
-				/*
-					// 문자열로 변환 시도
-					if utf8.ValidString(string(data[current_index:last_index])) {
-						output.Dyn_data = append(output.Dyn_data, string(data[current_index:last_index]))
-
-					} else {
-						// uint64 로 변환 시도
-						if dyn_data_length == 8 {
-
-							output_uint64, err3 := util.Bytes_to_UInt64(data[current_index:last_index])
-							if err3 != nil {
-								return []Deserialization_struct{}, err3
-							} else {
-								output.Dyn_data = append(output.Dyn_data, output_uint64)
-							}
-
-						} else {
-							// uint32 로 변환 시도
-							if dyn_data_length == 4 {
-								output_uint32, err4 := util.Bytes_to_UInt32(data[current_index:last_index])
-								if err4 != nil {
-									return []Deserialization_struct{}, err4
-								} else {
-									output.Dyn_data = append(output.Dyn_data, output_uint32)
-								}
-							} else {
-								// 최종-수단::byte그 자체로 저장한다.
-								output.Dyn_data = append(output.Dyn_data, []byte(data[current_index:last_index]))
-							}
-						}
-					}
-				*/
 				current_index = last_index
 				last_index += uint32(4)
 				continue

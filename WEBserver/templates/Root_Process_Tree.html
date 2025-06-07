@@ -458,7 +458,22 @@
                     </div>
                 </div>
             </div>
-
+            
+            <!-- LLM TREE 분석 결과  -->
+            <div class="widget">
+                <div class="widget-header">
+                    <h3>Tree 연관분석 결과</h3>
+                </div>
+                <div class="widget-container full-width">
+                    <div class="widget geoip-widget" style="padding: 0;">
+                        <iframe
+                          src='http://{{ kibana_host }}:{{ kibana_port }}/app/dashboards#/view/f52cfbf4-f75c-45cb-b07b-2450f9dc4ee4?embed=true&_g=(filters:!(),refreshInterval:(pause:!t,value:60000),time:(from%3Anow-10y%2Cto%3Anow%2B12h))&hide-filter-bar=true{{ llm_query }}'
+                          height=1000
+                          title="LLM TREE Kibana Dashboard">
+                        </iframe>
+                    </div>
+                </div>
+            </div>
             <!-- == behavior 각 유형 결과 == -->
              <!-- 프로세스 생성 -->
             <div class="widget">
@@ -468,7 +483,7 @@
                 <div class="widget-container full-width">
                     <div class="widget geoip-widget" style="padding: 0;">
                         <iframe
-                          src='http://{{ kibana_host }}:{{ kibana_port }}/app/dashboards#/view/32f233e3-8a39-4875-a2da-a3bfe8c613bb?embed=true&_g=%28refreshInterval%3A%28pause%3A%21f%2Cvalue%3A120000%29%2Ctime%3A%28from%3Anow-100y%2Cto%3Anow%29%29&hide-filter-bar=true{{ query }}'
+                          src='http://{{ kibana_host }}:{{ kibana_port }}/app/dashboards#/view/32f233e3-8a39-4875-a2da-a3bfe8c613bb?embed=true&_g=(filters:!(),refreshInterval:(pause:!t,value:60000),time:(from:now-12h,to:now%2B12h))&hide-filter-bar=true{{ query }}'
                           height=6000
                           title="Process Create Kibana Dashboard">
                         </iframe>

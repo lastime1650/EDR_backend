@@ -13,3 +13,4 @@ class KibanaAPI():
         lucene_query = lucene_query.replace("'","%27").replace('"',"%22")
         return f"&_a=(filters:!(),query:(language:lucene,query:%27{lucene_query}%27))"
     
+    

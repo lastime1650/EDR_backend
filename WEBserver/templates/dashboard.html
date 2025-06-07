@@ -302,7 +302,7 @@
             font-size: 0.8em;
             font-weight: bold;
             text-transform: uppercase;
-            /* margin-left: auto; /* flex gap을 사용했으므로 필수는 아니지만, 혹시 모를 상황 대비 유지 */ */
+            /* margin-left: auto; /* flex gap을 사용했으므로 필수는 아니지만, 혹시 모를 상황 대비 유지 */ 
             flex-shrink: 0; /* 배지가 줄어들지 않도록 */
         }
 
@@ -348,7 +348,7 @@
                         <iframe
                           src='http://{{ kibana_host }}:{{ kibana_port }}/app/dashboards#/view/b7d3a180-ec44-48e3-b0f4-8dc303a27d00?embed=true&_g=(refreshInterval%3A(pause%3A!f%2Cvalue%3A5000)%2Ctime%3A(from%3Anow-12h%2Cto%3Anow%2B12h))&hide-filter-bar=true'
 
-                          height=1300
+                          height=1000
                           title="GEOIP Kibana Dashboard">
                         </iframe>
                     </div>
@@ -356,6 +356,23 @@
             </div>
 
             <!-- == 나머지 위젯 (단순 세로 배치 예시) == -->
+
+            <!-- LLM TREE 분석 결과(전체)  -->
+            <div class="widget">
+                <div class="widget-header">
+                    <h3>전체 LLM TREE 연관분석 결과</h3>
+                </div>
+                <div class="widget-container full-width">
+                    <div class="widget geoip-widget" style="padding: 0;"> <!-- iframe 꽉 채우기 위해 패딩 제거 -->
+                        <iframe 
+                          src='http://{{ kibana_host }}:{{ kibana_port }}/app/dashboards#/view/f52cfbf4-f75c-45cb-b07b-2450f9dc4ee4?embed=true&_g=(refreshInterval%3A(pause%3A!f%2Cvalue%3A5000)%2Ctime%3A(from%3Anow-10y%2Cto%3Anow%2B12h))&hide-filter-bar=true'
+
+                          height=1000
+                          title="TREE Kibana Dashboard">
+                        </iframe>
+                    </div>
+                </div>
+            </div>
 
             <!-- 에이전트 조회 -->
             <div class="widget">

@@ -31,6 +31,12 @@ class Process():
     def __init__(self, es: ElasticsearchAPI, INDEX_PATTERN:str="siem-*"):
         self.INDEX_PATTERN = "siem-edr-*"
         self.es = es
+        
+        # 분석 결과 요청 인스턴스
+        from EDR.process_.analysis_server_tool import AnalysisServerTool
+        self.AnalysisServerTool = AnalysisServerTool(
+                es=es
+            )
 
         self.Process_log = {
             "endpoint_info": {
@@ -69,13 +75,12 @@ class Process():
 
         # self.Response_Method = {} 차단 할 때 추가 예정
 
-    def Add_to_Event(self, common_event:dict, categorical_event:dict, unique_event:dict):
-
+    def Add_to_Event(self, common_event:dict, categorical_event:dict, unique_event:dict, need_analysis_results:bool=False):
 
         # Unique 이벤트의 동적인 key값(예: Process_Created) 에 있는 키로 검증하고 추가한다.
         #print(unique_event.keys())
         behavior_event = unique_event["process_behavior_events"]
-        self.add_to_behavior_(behavior_event, common_event["Timestamp"])
+        self.add_to_behavior_(behavior_event, common_event["Timestamp"], need_analysis_results)
 
         # 프로세스 정보 추가
         self.add_to_process_info_(common_event, categorical_event)
@@ -100,7 +105,7 @@ class Process():
         self.Process_log["process_info"]["Root_is_running_by_user"] = categorical_event["process_info"]["Root_is_running_by_user"]
         # self.Process_log["process_info"]["Process_Created"]  # 프로세스 생성정보는 behavior 이벤트에서 추가한다.
 
-    def add_to_behavior_(self, behavior_event:dict, Timestamp:str):
+    def add_to_behavior_(self, behavior_event:dict, Timestamp:str,need_analysis_results:bool=False):
 
 
         #print( next( iter( behavior_event.keys() ) ) )
@@ -110,56 +115,62 @@ class Process():
         behavior_event[current_behavior_key]["Timestamp"] = Timestamp
 
         #print(behavior_event)
-        # check behavior 프로세스 특정 행동 탐지
+        # check behavior 프로세스 특정 행동 필터링
         if "Process_Created" == current_behavior_key:
             behavior_event['Process_Created']['event_name'] = "Process_Created"
-            #behavior_event["Process_Created"]['analyzed_results'] = self.Analysis_Collector.Get_FILE_analysis_result( # 파일 분석 결과 추출
-            #    sha256=behavior_event["Process_Created"]['ProcessSHA256'],
-            #)
+            behavior_event["Process_Created"]['analyzed_results'] = self.AnalysisServerTool.Get_File_Analysis_Result( # 파일 분석 결과 추출
+                                                                                                sha256=behavior_event["Process_Created"]['ProcessSHA256'],
+                                                                                            )
             self.Process_log["process_info"]["Process_Created"] = behavior_event["Process_Created"]
-            print(f"EXE -> {behavior_event['Process_Created']['ImagePath']}")
+            #$print(f"EXE -> {behavior_event['Process_Created']['ImagePath']}")
         elif "Process_Terminated" == current_behavior_key:
             behavior_event['Process_Terminated']['event_name'] = "Process_Terminated"
             self.Process_log["process_info"]["Process_Terminated"] = behavior_event["Process_Terminated"]
 
 
         elif "registry" == current_behavior_key:
-            self.add_behavior_Registry_(behavior_event["registry"])
+            self.add_behavior_Registry_(behavior_event["registry"],need_analysis_results)
         elif "file_system" == current_behavior_key:
-            self.add_behavior_FileSystem_(behavior_event["file_system"])
+            self.add_behavior_FileSystem_(behavior_event["file_system"],need_analysis_results)
         elif "network" == current_behavior_key:
-            self.add_behavior_Network_(behavior_event["network"])
+            self.add_behavior_Network_(behavior_event["network"],need_analysis_results)
         elif "image_load" == current_behavior_key:
-            self.add_behavior_ImageLoad_(behavior_event["image_load"])
+            self.add_behavior_ImageLoad_(behavior_event["image_load"],need_analysis_results)
         else:
-            self.add_behavior_others_(behavior_event[current_behavior_key]) # 다른 것
+            self.add_behavior_others_(behavior_event[current_behavior_key]) # 다른 것 
 
     # 행위 축적 -> 분석 요청(특징 추출)
-    def add_behavior_ImageLoad_(self, ImageEvent:dict):
-        #ImageEvent['analyzed_results'] = self.Analysis_Collector.Get_FILE_analysis_result( # 파일 분석 결과 추출
-        #    sha256=ImageEvent['ImageSHA256'],
-        #)
+    def add_behavior_ImageLoad_(self, ImageEvent:dict,need_analysis_results:bool=False):
+        if need_analysis_results:
+            ImageEvent["analyzed_results"] = self.AnalysisServerTool.Get_File_Analysis_Result( # 파일 분석 결과 추출
+                                        sha256=ImageEvent['ImageSHA256'],
+                                    )
         ImageEvent["event_name"] = "ImageLoad"
         self.Process_log["behaviors"]["ImageLoad"].append(ImageEvent)
-    def add_behavior_Registry_(self, RegistryEvent:dict):
+        
+    def add_behavior_Registry_(self, RegistryEvent:dict,need_analysis_results:bool=False):
         RegistryEvent["event_name"] = "Registry"
         self.Process_log["behaviors"]["Registry"].append(RegistryEvent)
-    def add_behavior_FileSystem_(self, FileSystemEvent:dict):
-        #FileSystemEvent['analyzed_results'] = self.Analysis_Collector.Get_FILE_analysis_result(  # 파일 분석 결과 추출
-        #    sha256=FileSystemEvent['ImageSHA256'],
-        #)
+        
+    def add_behavior_FileSystem_(self, FileSystemEvent:dict,need_analysis_results:bool=False):
+        if need_analysis_results:
+            try:
+                FileSystemEvent['analyzed_results'] = self.AnalysisServerTool.Get_File_Analysis_Result(  # 파일 분석 결과 추출
+                    sha256=FileSystemEvent['ImageSHA256'],
+                )
+            except:
+                pass
+            
         FileSystemEvent["event_name"] = "FileSystem"
         self.Process_log["behaviors"]["FileSystem"].append(FileSystemEvent)
-    def add_behavior_Network_(self, NetworkEvent:dict):
+        
+    def add_behavior_Network_(self, NetworkEvent:dict,need_analysis_results:bool=False):
         NetworkEvent["event_name"] = "Network"
         self.Process_log["behaviors"]["Network"].append(NetworkEvent)
-    def add_behavior_others_(self, othersEvent:dict):
+        
+    def add_behavior_others_(self, othersEvent:dict,need_analysis_results:bool=False):
         othersEvent["event_name"] = "others"
         self.Process_log["behaviors"]["others"].append(othersEvent)
-
-    # 차단 목록 추가 (필요없을 듯)
-    def add_to_response_(self, response_method:dict):
-        self.Response_Method = response_method
     
     #--
     
@@ -185,8 +196,12 @@ class Process():
         # 2. 프로세스 종료 타임스탬프
         # 3. 프로세스 이벤트 다른 타입 ( Filesystem, Others(자식 생성 등등 사전에 정의되지 않은 불투명 이벤트), Registry, ImageLoad, Network )
         behavior_events = []
-        if "Timestamp" in self.Process_log["process_info"]["Process_Terminated"]:
-            behavior_events.extend([self.Process_log["process_info"]["Process_Terminated"]])
+        
+        try:
+            if "Timestamp" in self.Process_log["process_info"]["Process_Terminated"]:
+                behavior_events.extend([self.Process_log["process_info"]["Process_Terminated"]])
+        except:
+            pass
         
         if "Timestamp" in self.Process_log["process_info"]["Process_Created"]:
             behavior_events.extend([self.Process_log["process_info"]["Process_Created"]])
@@ -198,6 +213,46 @@ class Process():
         
         self.Sorted_Events = result
         
+        
+        ##############################################
+        ## (중복제거) 집계 결과에 대한 타임라인 Dict 추가 ##
+        # 기대 효과 -> LLM 연관 분석시 BLock 최소화
+        ##############################################
+        
+        self.sorted_event_list:list[dict] = []
+        for event in self.output_aggregation_():
+            event:dict = event
+            
+            BehaviorKey = next( iter( event.keys() ) )
+            
+            event_list:list[dict] = event[BehaviorKey]
+            if len(event_list) == 0:
+                continue
+            for event in event_list:
+                
+                self.sorted_event_list.append(
+                    {
+                        "event_name": BehaviorKey,
+                        "event": event['key'],
+                        "Timestamp": event["max_timestamp"]["value_as_string"]
+                    }
+                )
+        
+        try:
+            if "Timestamp" in self.Process_log["process_info"]["Process_Terminated"]:
+                self.sorted_event_list.extend([self.Process_log["process_info"]["Process_Terminated"]])
+        except:
+            pass
+        
+        if "Timestamp" in self.Process_log["process_info"]["Process_Created"]:
+            self.sorted_event_list.extend([self.Process_log["process_info"]["Process_Created"]])
+        
+        result =  sorted(self.sorted_event_list, key=lambda x: parse_timestamp(x))
+        self.sorted_event_list = result
+        
+        return
+                
+        
 
     # 수 많은 이벤트에 대한 집계 쿼리 수행 -> 연관분석에 활용될 수 있음
     
@@ -208,16 +263,10 @@ class Process():
         output:list[dict] = Output___Process_Behavior_Aggregation(
             ProcessCycleId=self.Process_log["process_info"]["Process_Life_Cycle_Id"],
             es=self.es,
-            
+            INDEX_PATTERN=self.INDEX_PATTERN
         )
         
-        output.append(
-            {
-                "imageload": self.Process_log["behaviors"]["ImageLoad"]
-            }
-        )
-        
-        print(f"--> aggr -> output -> \n{output}")
+        # print(f"--> aggr -> output -> \n{output}")
         return output
     #--
 
@@ -227,7 +276,10 @@ class Process():
 
         process_log = {
             "process_event": self.Process_log,
-            "behavior_timeline": self.Sorted_Events
+            "behavior_timeline": self.Sorted_Events,
+            
+            # 집계 결과 후 타임라인
+            "behavior_timeline_sorted": self.sorted_event_list
         }
         
         

@@ -24,6 +24,15 @@ class EDR_Manager():
         from EDR.servers.Kibana import KibanaAPI
         self.KibanaAPI = KibanaAPI(host=Kibana_host, port=Kibana_port, es=self.ElasticsearchAPI)
         
+        self.CoreServer_host = CoreServer_host
+        self.CoreServer_port = CoreServer_port
+        
+        self.ElasticSearch_host = ElasticSearch_host
+        self.ElasticSearch_port = ElasticSearch_port
+        
+        self.Kibana_host = Kibana_host
+        self.Kibana_port = Kibana_port
+        
     
     # 모든 에이전트 정보 추출
     def Get_Agents(self)->Optional[list[dict]]:
@@ -163,13 +172,14 @@ class EDR_Manager():
         return output
         
     # Root 프로세스 사이클 -> 트리구조 반환
-    def Get_Process_Tree(self, root_process_id:str, index="siem-edr-*")->Tuple[ Optional[dict], Optional[str] ]:
+    def Get_Process_Tree(self, root_process_id:str, index="siem-edr-*", need_analysis_results:bool=False)->Tuple[ Optional[dict], Optional[str] ]:
         from EDR.process_.process_tree import Process_Tree_Maker
         
         # [1/2] 실제 Root 프로세스 사이클 기반, Tree구조 생성
         output_tree_dict, output_mermaid_graph = Process_Tree_Maker(
                                                         es=self.ElasticsearchAPI,
-                                                        INDEX_PATTERN=index
+                                                        INDEX_PATTERN=index,
+                                                        need_analysis_results=need_analysis_results # 분석 결과 포함 여부
                                                     ).Create_Process_Tree(
                                                         Root_Process_Life_Cycle_Id=root_process_id
                                                     )

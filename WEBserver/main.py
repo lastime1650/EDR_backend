@@ -44,7 +44,7 @@ class WebServer:
         self.Kibana_port = Kibana_port
         
         # HTML 템플릿
-        self.Template = Jinja2Templates(directory="templates")#/docker__WEBserver/templates")
+        self.Template = Jinja2Templates(directory="/docker__WEBserver/templates")
         
         
         # ## 리소스 ## #
@@ -75,27 +75,39 @@ class WebServer:
         
         # -- 연계 형 서비스 -- #
         
-        # 챗봇 매니저 ( LLM 매니저 연계 )
-        from Chatbot.ChatbotManager import ChatbotManager
-        self.ChatbotManager = ChatbotManager(
-            EDR_Manager=self.EDR_Manager,
-            LLM_Manager=self.LLM_Manager
-        )
+        
         
         # 시그마 룰 ( EDR 매니저 연계 -> 엘라스틱서치 필요 )
         from BehaviorAnalyzerManagement.SigmaManagement.Sigma_Manager import Sigma_Manager
         self.Sigma_Manager = Sigma_Manager(
             es=self.EDR_Manager.ElasticsearchAPI,
-            Root_Directory="BehaviorAnalyzerManagement/SigmaManagement/sigma_all_rules/rules"#"/docker__WEBserver/BehaviorAnalyzerManagement/SigmaManagement/sigma_all_rules/rules"
+            Root_Directory="/docker__WEBserver/BehaviorAnalyzerManagement/SigmaManagement/sigma_all_rules/rules"
+        )
+        
+        # 행위 분석 로그 관리
+        from BehaviorAnalyzerManagement.Behavior_Elasticsearch import Behavior_ElasticSearch
+        behavior_elasticsearch = Behavior_ElasticSearch(
+            elastichost=self.EDR_Manager.ElasticSearch_host,
+            elasticport=self.EDR_Manager.ElasticSearch_port,
         )
         
         # 행위 분석 매니저 ( LLM 매니저 + EDR 매니저 연계 )
-        from BehaviorAnalyzerManagement.BehaviorAnalzer import BehaviorAnalzer
-        self.BehaviorAnalzer = BehaviorAnalzer(
+        from BehaviorAnalyzerManagement.BehaviorAnalzer import BehaviorAnalyzer
+        self.BehaviorAnalzer = BehaviorAnalyzer(
             Sigma_Manager=self.Sigma_Manager,
-            EDR_Manager=self.EDR_Manager
+            EDR_Manager=self.EDR_Manager,
+            LLM_Manager=self.LLM_Manager,
+            behavior_elasticsearch=behavior_elasticsearch,
         )
         
+        
+        # 챗봇 매니저 ( LLM 매니저 연계 )
+        from Chatbot.ChatbotManager import ChatbotManager
+        self.ChatbotManager = ChatbotManager(
+            EDR_Manager=self.EDR_Manager,
+            LLM_Manager=self.LLM_Manager,
+            TreeBehaviorAnalyzer=self.BehaviorAnalzer,
+        )
         
         # app
         self.app = FastAPI()
@@ -106,7 +118,7 @@ class WebServer:
         # Statci 설정
         self.app.mount(
             "/static",
-            StaticFiles(directory="static"),#/docker__WEBserver/static"),
+            StaticFiles(directory="/docker__WEBserver/static"),
             name="static",
         )
         
@@ -127,6 +139,9 @@ class WebServer:
         # 특정 에이전트, 특정 ROOT 프로세스 상세 페이지
         self.app_router.get("/Root_Process_Tree")(self.Root_Process_Tree)
         
+        
+        # LLM 분석 요청
+        self.app_router.get("/LLM_Request")(self.LLM_Request)
         
         
         # WebSocket (챗봇 소켓)
@@ -193,7 +208,6 @@ class WebServer:
         root_processes = self.EDR_Manager.Get_Processes(
             agent_id=agent_id,
         )
- 
         
         return self.Template.TemplateResponse(
             "agent_detail.html",
@@ -226,6 +240,58 @@ class WebServer:
             lucene_query=f"categorical.Agent_Id : {agent_id} AND categorical.process_info.Root_Parent_Process_Life_Cycle_Id : {root_process_id} "
         )
         
+        # 루시네 쿼리 --> LLM TREE 연관분석 결과 대시보드 가져오기
+        
+        ## 1. SHA256가져오기 ( ROOT 프로세스가 가진 자신의 self_SHA256와 parent_SHA256 값가져오기 )
+        self_sha256_by_ROOT_process = "" # 35f56e6019406ee4247dfaf7a96e210eee795c8b05dc3c3666a2f644a8d4beab
+        parent_sha256_by_ROOT_process = "" # 6a33947b40670d815b3dc7d1435fb0b432beca371fd5e05e2e5190aef337df9b
+        
+        ## 2. -
+        output  = self.EDR_Manager.ElasticsearchAPI.Query(
+            query={
+                "query" : {
+                    "bool":{
+                        "filter":[
+                            {
+                                "term":{
+                                    "categorical.Agent_Id": agent_id
+                                }
+                            },
+                            {
+                                "term":{
+                                    "categorical.process_info.Root_Parent_Process_Life_Cycle_Id": root_process_id
+                                }
+                            },
+                            {
+                                "exists":{
+                                    "field":"unique.process_behavior_events.Process_Created"
+                                }
+                            }
+                        ]
+                    }
+                },
+                "size":1,
+                "_source":{
+                    "includes":[
+                        "unique.process_behavior_events.Process_Created.ProcessSHA256", # self_SHA256
+                        "unique.process_behavior_events.Process_Created.Parent_ProcessSHA256" # parent_SHA256
+                    ]
+                }
+                
+            },
+            index="siem-edr-*",
+            is_aggs=False
+        )
+        if len(output) > 0:
+            
+            self_sha256_by_ROOT_process = output[0]["_source"]["unique"]["process_behavior_events"]["Process_Created"]["ProcessSHA256"]
+            parent_sha256_by_ROOT_process = output[0]["_source"]["unique"]["process_behavior_events"]["Process_Created"]["Parent_ProcessSHA256"]
+        
+        print(f"self_sha256_by_ROOT_process -> {self_sha256_by_ROOT_process} // parent_sha256_by_ROOT_process -> {parent_sha256_by_ROOT_process}")
+        ## 3. 루시네 쿼리 생성
+        llm_query = self.EDR_Manager.KibanaAPI.Get_Iframe(
+            lucene_query=f"edr.self_sha256 : {self_sha256_by_ROOT_process} AND edr.parent_sha256 : {parent_sha256_by_ROOT_process}"
+        )
         # TREE 구하기
         process_tree, mermaid_graph = self.EDR_Manager.Get_Process_Tree(
             root_process_id=root_process_id # Root 프로세스 사이클 ID 
@@ -240,6 +306,7 @@ class WebServer:
             {
                 "request":request,
                 "query":lucene_result,
+                "llm_query": llm_query,
                 "agent_id": agent_id,
                 
                 "root_process_cycle_id": root_process_id,
@@ -252,6 +319,25 @@ class WebServer:
                 "websocket_connection_url": f"ws://{self.WebSocket_External_Host}:{self.WEB_port}/ws"
             }
         )
+    
+    # dict REUTNR (페이지가 아님)
+    async def LLM_Request(self, request: Request, agent_id:str, root_process_id:str,):
+        # 쿠키 체크
+        if not self.WebManager.cookie_manager.Check_Cookie(request=request):
+            return {"status": "fail", "message": "쿠키 체크 실패"}
+        
+        # 사전 중복 체크
+        
+        # 요청
+        threading.Thread(
+            target=self.BehaviorAnalzer.Thread_Tree_Analysis_Queue,
+            args=(
+                agent_id,
+                root_process_id
+            )
+        ).start()
+        
+        return {"status":"success", "message":"요청-성공"}
         
         
     ###############################################################################################################################################
@@ -262,7 +348,7 @@ class WebServer:
     def run(self):
         uvicorn.run(self.app, host=self.WEB_host, port=self.WEB_port)
         
-        
+
 # Dockerfile 환경변수
 import os
 
@@ -280,11 +366,9 @@ kibana_port = os.environ.get("KIBANA_PORT", "5601")
 core_server_host = os.environ.get("CORE_SERVER_HOST", "0.0.0.0") # 기본값 도메인(호스트명) 이름
 core_server_port = os.environ.get("CORE_SERVER_PORT", "10000")
 
-WebSocket_External_Host = os.environ.get("WEBSOCKET_EXTERNAL_HOST", "192.168.0.1") # WebSocket , Client 브라우저에 보여질 것 (무조건 설정해야함)
+WebSocket_External_Host = os.environ.get("WEBSOCKET_EXTERNAL_HOST", "0.0.0.0") # WebSocket , Client 브라우저에 보여질 것 (무조건 설정해야함)
 
 GOOGLE_GEMINI_API = os.environ.get("GOOGLE_GEMINI_API", " 구글 제미나이 API 키.. 필수키")
-
-
 
 print(f"""
       
@@ -321,14 +405,15 @@ t = WebServer(
     Kibana_port=int(kibana_port),
 )
 
+
 # TEST
-'''from BehaviorAnalyzerManagement.SigmaManagement.Sigma_Manager import Sigma_Manager, SigmaTargetEndpoint
+from BehaviorAnalyzerManagement.SigmaManagement.Sigma_Manager import Sigma_Manager, SigmaTargetEndpoint
 t.BehaviorAnalzer.Start_Behavior_Analyzer(
     endpoint_type=SigmaTargetEndpoint.windows,
     agent_id="d7dbf53c4007173122ff65cbba4a1cf103277eb91f3c366a534ed37a942e363cdd7367ef18dc11d0386b84797a660c558f3b76fa97e2b497928b2b61f73fdccf",
-    root_process_id="7156ea5741c56fe0c0e725d0ef53bd199766ce60df2218d9bdaa4e05bfaa8ef2420da070c1bc228f89c456e9915979fb4dc99021f7f6e9c1fc3c3be98f7e4697"
-)'''
-
+    root_process_id="7ed54e018102a59f6ef14e7bbdf5f96112ac6b669e08b6ab65286a3d28eaf74693392d723fbc91672ba42c36ff26e71fc93dc819ecf4be70fe5ea3b8c8b35437"
+)
+# 6e603bf8b4f9e29e7b2fbced5c89d7d4fc641014db5e9460312e05602660710b01c289762031b0982228e496fff2b7f5089af049d409d4d9dec09eb84eec7193
 '''from BehaviorAnalyzerManagement.SigmaManagement.Sigma_Manager import Sigma_Manager, SigmaTargetEndpoint
 t.Sigma_Manager.Sigma_Analysis(
     target=SigmaTargetEndpoint.windows,
@@ -348,5 +433,7 @@ t.Sigma_Manager.Sigma_Analysis(
 
 print(tree)
 '''
+
+# Win 태블릿 -> 에이전트 ID  94cc91fbe1cc241c3de1fd8bea909febffee363cd6028195a04718e5098d634f9156bbc395e690e0c7c3c4194da29082d408b7cd44e154aeee21d147682957b1
 
 t.run()

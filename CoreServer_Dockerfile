@@ -1,0 +1,42 @@
+# 빌드 단계
+
+# go 빌드전용 이미지
+FROM golang:1.23 as builder
+
+
+
+WORKDIR /CoreServer
+
+COPY CoreServer2/go.mod ./
+
+RUN go mod download
+COPY CoreServer2 .
+RUN CGO_ENABLED=0 GOOS=linux go build -o run_coreserver
+
+# 실행 단계
+# 경량 alpine으로 하기엔 성능이 느림
+FROM  rockylinux:9
+
+RUN dnf update -y && \
+    dnf install -y  NetworkManager bind-utils tzdata && \
+    dnf clean all
+
+ENV TZ=Asia/Seoul
+
+# go 빌드
+WORKDIR /CoreServer
+
+COPY --from=builder /CoreServer/run_coreserver .
+
+
+# 최상위 루트로 이동
+WORKDIR /
+
+
+# 1. Core Server ( EDR )
+# 2. WEB server
+
+
+RUN dnf install epel-release -y && dnf install htop -y
+
+CMD ["/bin/bash", "-c", "/CoreServer/run_coreserver & tail -f /dev/null"] 

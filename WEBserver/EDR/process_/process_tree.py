@@ -5,12 +5,14 @@ from EDR.process_.process_instance_ import Process
 from EDR.servers.Elasticsearch import ElasticsearchAPI
 
 class Process_Tree_Maker():
-    def __init__(self, es: ElasticsearchAPI, INDEX_PATTERN:str="siem-*"):
+    def __init__(self, es: ElasticsearchAPI, INDEX_PATTERN:str="siem-*", need_analysis_results:bool=False):
         self.es = es
         self.INDEX_PATTERN = INDEX_PATTERN
+        
+        # 프로세스 Tree 수집시 분석 결과 포함 여부 ( 결과 포함 시,,,,, Blocking 시간이 길어짐 )
+        self.need_analysis_results = need_analysis_results
 
     def Create_Process_Tree(self, Root_Process_Life_Cycle_Id: str)->Tuple[ Optional[dict], Optional[str] ]:
-        
         
         Root_Process = self.process_scan_____(Root_Process_Life_Cycle_Id)
         if not Root_Process:
@@ -18,14 +20,22 @@ class Process_Tree_Maker():
         
         tree = {
             "self": Root_Process.Output_Process_Info(),
-            "child": []
+            "child": [],
+            "_node_depth": {"key": 0}, # Tree 노드의 깊이
+            "_node_count": {"key": 1}, # Tree 노드의 개수
         }
         
         self.loop_find_process_tree_from_root_(
             my_Process_Life_Cycle_Id=Root_Process_Life_Cycle_Id,
-            child_list=tree["child"]
+            child_list=tree["child"],
+            
+            node_depth_field=tree["_node_depth"],
+            node_count_field=tree["_node_count"],
         )
         
+        #print(f'[1/2]트리----> 깊이:{tree["_node_depth"]["key"]}, 개수:{tree["_node_count"]["key"]}')
+        self.Get_Node_Counting(tree) # 재 초기화 후 구하기
+        #print(f'[2/2]트리----> 깊이:{tree["_node_depth"]["key"]}, 개수:{tree["_node_count"]["key"]}')
         
         
         
@@ -43,12 +53,11 @@ class Process_Tree_Maker():
         result_mermaid_graph = mermaid_graph_maker.Complete_Graph()# 이 후... Complete_Graph() -> ret -> mermaid_graph_maker.Mermaid_graph_string -> 에는 그래프가 완성됨
         
         return tree, result_mermaid_graph
-        
     
     
     
     # 내부 메서드
-    def loop_find_process_tree_from_root_(self, my_Process_Life_Cycle_Id:str, child_list: list):
+    def loop_find_process_tree_from_root_(self, my_Process_Life_Cycle_Id:str, child_list: list, node_depth_field:dict, node_count_field:dict):
         current_Timestamp: Optional[str] = None
         size_chunk = 100
         while True:
@@ -95,6 +104,9 @@ class Process_Tree_Maker():
                 print("조회 실패(새로운 로그가 없음)")
                 break
             
+            # 노드 depth 증가 
+            node_depth_field["key"] += 1
+            
             
             sources = self.make_sources_(hits)
 
@@ -112,15 +124,40 @@ class Process_Tree_Maker():
                     "child": []
                 }
                 
-                self.loop_find_process_tree_from_root_(Child_Process_Life_Cycle_Id, current_child["child"])
+                # 노드 개수 증가
+                node_count_field["key"] += 1
+                
+                self.loop_find_process_tree_from_root_(Child_Process_Life_Cycle_Id, current_child["child"], node_depth_field, node_count_field)
 
                 child_list.append(current_child) # 프로세스 자식 트리 정보 생성
 
 
                 #return # <- 임시
     
+    # 노드 탐색 # 
+    def Get_Node_Counting(self, tree:dict, child_field_name="child"):
+        
+        tree["_node_depth"]["key"] = 0
+        tree["_node_count"]["key"] = 1
+        
+        self.get_node_counting_recursive(child_list=tree[child_field_name], node_depth_field=tree["_node_depth"], node_count_field=tree["_node_count"])
+        
+        return tree
+        
     
-    
+    def get_node_counting_recursive(self, child_list:list, node_depth_field:dict, node_count_field:dict, child_field_name="child"):
+        
+        if len(child_list) == 0:
+            return
+        
+        node_depth_field["key"] += 1 # 깊이 카운트
+        
+        for child in child_list:
+            
+            node_count_field["key"] += 1 # 개수 카운트
+            
+            self.get_node_counting_recursive(child[child_field_name], node_depth_field, node_count_field)
+    #############
     
     def process_scan_____( self, Process_Life_Cycle_Id: str)->Optional[Process]:
         # 프로세스 당 ,, 이벤트가 상당히 많기 때문에, 타임스탬프 기반으로 반복 쿼리 (최신일 때 까지)
@@ -210,11 +247,21 @@ class Process_Tree_Maker():
                     Start_Timestamp = current_timestamp
 
                 # 프로세스 인스턴스에 담기
-                process_instance.Add_to_Event(common_event, categorical_event, unique_event)
+                process_instance.Add_to_Event(common_event, categorical_event, unique_event, self.need_analysis_results)
 
 
         # 마감처리
         process_instance.Finalize()
+        
+        # 타임스탬프 순 이벤트 출력
+        #print( process_instance.Sorted_Events )
+        
+        # 테스트 물리 저장
+        import json
+        events = process_instance.Sorted_Events
+        with open('test.json', 'w') as f:
+            json.dump(events, f)
+        
         return process_instance
 
 
