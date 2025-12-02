@@ -14,7 +14,7 @@ class LLM_Cluster():
                     max_tokens=None,
                     timeout=None,
                     max_retries=2,
-                    google_api_key="AIzaSyBsbshtqhFk8syGxUAeF1SLKoc43BlJjc4"
+                    google_api_key="****"
                 ),
                 "ref_count": 0,
                 "mutex": threading.Lock()
@@ -26,7 +26,7 @@ class LLM_Cluster():
                     max_tokens=None,
                     timeout=None,
                     max_retries=2,
-                    google_api_key="AIzaSyB39jFmNgJAZK6OeJrbu9FpTKFCe9fO1QM"
+                    google_api_key="****"
                 ),
                     "ref_count": 0,
             "mutex": threading.Lock()
@@ -57,4 +57,5 @@ class LLM_Cluster():
         pass
 
     def Remove_Model(self):
+
         pass
