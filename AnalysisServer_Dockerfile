@@ -1,0 +1,38 @@
+
+FROM  rockylinux:9
+
+RUN dnf update -y && \
+    dnf install -y  NetworkManager bind-utils tzdata && \
+    dnf install -y python3 python3-pip **python3-devel** && \ 
+    dnf install -y openssl && \ 
+    dnf install -y net-tools && \ 
+    dnf clean all
+
+ENV TZ=Asia/Seoul
+
+
+
+
+### 분석 서버 설치 시작 ###
+WORKDIR /docker__AnalysisServer
+
+# requirement.txt 설치
+COPY AnalysisServer/requirements.txt .
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+# Analysis Server 파이썬스크립트 복사
+COPY AnalysisServer/ .
+
+### 분석 서버 설치 끝  ###
+
+# 최상위 루트로 이동
+WORKDIR /
+
+# 절대경로로 모두 실행하는게 좋음
+
+
+# 1. Analysis Server ( EDR )
+
+RUN dnf install epel-release -y && dnf install htop -y
+
+CMD ["/bin/bash", "-c", "dnf update -y && python3 /docker__AnalysisServer/main.py"] 

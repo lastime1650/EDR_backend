@@ -14,7 +14,7 @@ class LLM_Cluster():
                     max_tokens=None,
                     timeout=None,
                     max_retries=2,
-                    google_api_key="AIzaSyBsbshtqhFk8syGxUAeF1SLKoc43BlJjc4"
+                    google_api_key="****"
                 ),
                 "ref_count": 0,
                 "mutex": threading.Lock()
@@ -26,7 +26,7 @@ class LLM_Cluster():
                     max_tokens=None,
                     timeout=None,
                     max_retries=2,
-                    google_api_key="AIzaSyB39jFmNgJAZK6OeJrbu9FpTKFCe9fO1QM"
+                    google_api_key="****"
                 ),
                     "ref_count": 0,
             "mutex": threading.Lock()
@@ -53,8 +53,23 @@ class LLM_Cluster():
                     else:
                         return False
 
-    def Add_Model(self):
-        pass
+    def Add_Model(self, model_name: str, model: Any):
+        with self.mutex_:
+            if model_name in self.LLMs:
+                return False  # 이미 존재함
+            self.LLMs[model_name] = {
+                "model": model,
+                "ref_count": 0,
+                "mutex": threading.Lock()
+            }
+            return True
 
-    def Remove_Model(self):
-        pass
+    def Remove_Model(self, model_name: str):
+        with self.mutex_:
+            if model_name not in self.LLMs:
+                return False
+            if self.LLMs[model_name]["ref_count"] > 0:
+                return False  # 사용 중인 모델은 삭제 불가
+            
+            del self.LLMs[model_name]
+            return True

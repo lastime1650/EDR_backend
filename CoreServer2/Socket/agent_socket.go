@@ -11,12 +11,18 @@ import (
 type Agent_Socket struct {
 	TCPconn net.Conn
 	Mutex   sync.Mutex
+
+	Is_Disconnected_Mutex sync.Mutex
+	Is_Disconnected       bool
 }
 
 func New_Agent_Socket(TCPconn net.Conn) *Agent_Socket {
 	return &Agent_Socket{
 		TCPconn: TCPconn,
 		Mutex:   sync.Mutex{},
+
+		Is_Disconnected_Mutex: sync.Mutex{},
+		Is_Disconnected:       false,
 	}
 }
 
@@ -73,7 +79,23 @@ func (as *Agent_Socket) Receive() ([]byte, error) {
 }
 
 func (as *Agent_Socket) Disconnect() error {
-	return as.TCPconn.Close()
+
+	as.Is_Disconnected_Mutex.Lock()
+	defer as.Is_Disconnected_Mutex.Unlock()
+
+	if as.Is_Disconnected {
+		return nil
+	} else {
+		as.Is_Disconnected = true
+		return as.TCPconn.Close()
+	}
+}
+
+func (as *Agent_Socket) Check_Disconnected() bool {
+	as.Is_Disconnected_Mutex.Lock()
+	defer as.Is_Disconnected_Mutex.Unlock()
+
+	return as.Is_Disconnected
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"net"
 	"sync"
-	"time"
 )
 
 /*
@@ -34,6 +33,8 @@ type Agent_Manager struct {
 	Agent_Controller *agent_manager.Agent_Controller
 
 	mutex_ *sync.Mutex
+
+	mutex__ *sync.Mutex
 }
 
 // 생성자 부분
@@ -47,7 +48,8 @@ func New_Agent_Manager(TCPconn net.Conn, shareobject *ShareObject.Sharing, Seedo
 
 		Agent_Controller: agent_manager.New_Agent_Controller(agent_socket, Seedobject), // 명령 세트
 
-		mutex_: &sync.Mutex{},
+		mutex_:  &sync.Mutex{},
+		mutex__: &sync.Mutex{},
 	}
 }
 
@@ -84,30 +86,35 @@ func (as *Agent_Manager) Start_Agent_Communication() {
 	*/
 	fmt.Print("Agent와 연결되었습니다.")
 
+	// 하위 루프는 상당히 빠르게 진행되어야한다.
 	for {
 
-		{
-			//if recv_data, _ := as.loop_request_to_Agent(); recv_data != nil {
-			if recv_data, _ := as.Agent_Controller.Loop_request_to_Agent(); recv_data != nil {
+		//if recv_data, _ := as.loop_request_to_Agent(); recv_data != nil {
+		if recv_data, _ := as.Agent_Controller.Loop_request_to_Agent(); recv_data != nil {
 
-				// 빈 껍데기를 가져왔는 지 확인해야함
-				if len(recv_data) == 1 && recv_data[0].Command == enums.FAIL {
-					continue
-				}
+			// 빈 껍데기를 가져왔는 지 확인해야함
+			if recv_data[0].Command == enums.FAIL {
+				continue
+			}
+
+			if !as.Agent_Controller.Agent_TCP.Is_Disconnected {
 
 				// go루틴 병렬 파싱/솔루션 전송 처리
-				go as.send_agent_log(recv_data)
 
-			} else {
-				// loop 데이터 요청 실패
-				fmt.Println("에이전트에게 데이터를 전송하지 못했습니다. <<연결을 끊겠습니다.>>")
+				dataCopy := append([]parse.Deserialization_struct(nil), recv_data...) // 데이터 Copy
+				go as.send_agent_log(dataCopy)
 
-				// 연결끊김 이벤트를 전달
-				//as.send_agent_status(enums.Agent_lose_connect)
-
-				as.shareobject.Remove_Agent_Controller(as.Agent_Controller)
-				return // 에이전트간 세션 종료
 			}
+
+		} else {
+			// loop 데이터 요청 실패
+			fmt.Println("에이전트에게 데이터를 전송하지 못했습니다. <<연결을 끊겠습니다.>>")
+
+			// 연결끊김 이벤트를 전달
+			//as.send_agent_status(enums.Agent_lose_connect)
+
+			as.shareobject.Remove_Agent_Controller(as.Agent_Controller)
+			return // 에이전트간 세션 종료
 		}
 
 	}
@@ -120,10 +127,17 @@ func (as *Agent_Manager) Start_Agent_Communication() {
 // 에이전트 로그 처리 후 솔루션 전송 [go-routine]
 func (as *Agent_Manager) send_agent_log(recv_data []parse.Deserialization_struct) {
 
-	// [이 스레드는 go루틴에서 처리된다.]
-	send_datas := []map[string]interface{}{}
+	// send_agent_log 스레드는 모두 작업 완료까지 블로킹 시간이 길다. mutex로 순차적으로 진행하도록 하여 프로세스 생성 및 생애주기 순서를 보장하도록 한다.
+	as.mutex__.Lock()
+	defer as.mutex__.Unlock()
+
 	// 2차원 구조를 1차원씩 꺼내서 리스트 map 생성
 	for _, event := range recv_data {
+
+		if as.Agent_Controller.Agent_TCP.Is_Disconnected {
+			return
+		}
+
 		// 실패 반환하면 continue
 		if event.Command == enums.FAIL {
 			continue
@@ -141,33 +155,19 @@ func (as *Agent_Manager) send_agent_log(recv_data []parse.Deserialization_struct
 				}
 
 				// 실제 바이너리 요청 후 분석서버 요청 메서드 -> :: 바이너리 관련한 처리는 여기서 다함 + "파일타입" 분석 서버 요청 포함
+				/*
+					as.check_and_Save_Binary_File(
+						parsed_event.Command,   // 이벤트 종류 인자
+						parsed_event,           // 이벤트 구조체 인자
+						&parsed_event.Dyn_Data, // Dyn_Data 인자에 새로운 key를 삽입할 수 있음(sha256 키 추가)
+					)
 
-				as.check_and_Save_Binary_File(
-					parsed_event.Command,   // 이벤트 종류 인자
-					parsed_event,           // 이벤트 구조체 인자
-					&parsed_event.Dyn_Data, // Dyn_Data 인자에 새로운 key를 삽입할 수 있음(sha256 키 추가)
-				)
+					// 네트워크 유형일 떄 remote_ip 분석서버에 분석 요청
+					if parsed_event.Command == enums.Network_Traffic {
+						go as.check_network_analysis(parsed_event.Dyn_Data["REMOTE_IP"].(string))
+					}
 
-				// 네트워크 유형일 떄 remote_ip 분석서버에 분석 요청
-				if parsed_event.Command == enums.Network_Traffic {
-					as.check_network_analysis(parsed_event.Dyn_Data["REMOTE_IP"].(string))
-				}
-
-				send_data := map[string]interface{}{
-					"agent_info": as.Agent_Controller.Output_AGENT_INFO(),
-					"command":    util.ERROR_PROCESSING(parsed_event.Command.String()),
-					"pid":        parsed_event.PID,
-					"timestamp":  parsed_event.Timestamp,
-
-					"process_life_cycle_id":             cycle_.My_cycle_info.Process_life_cycle_id,             // 나의 사이클ID
-					"parent_process_life_cycle_id":      cycle_.My_cycle_info.My_parent_Process_life_cycle_id,   // 나의 직계부모 사이클 ID
-					"root_parent_process_life_cycle_id": cycle_.My_cycle_info.Root_parent_Process_life_cycle_id, // 나의 최초 조상 사이클 ID
-					"root_is_running_by_user":           cycle_.My_cycle_info.Root_is_running_by_user,           // 나의 최초 조상은 "실제 유저"가 실행했는가? 여부
-
-					"dyndata": parsed_event.Dyn_Data,
-				}
-				send_datas = append(send_datas, send_data)
-
+				*/
 				// 이벤트 1개 -> ElasticSearch index 규격 JSON생성 -> 카프카 전송
 				as.send_to_elastic_search(
 					parsed_event.Command,
@@ -188,10 +188,6 @@ func (as *Agent_Manager) send_agent_log(recv_data []parse.Deserialization_struct
 			}
 		}
 	}
-
-	// 처리가 필요한 솔루션에게 제공
-	as.shareobject.RegisteredServer_Manager.Send_list_map(send_datas)
-	time.Sleep(time.Millisecond * 100) //0.1초
 }
 
 /*
@@ -200,6 +196,8 @@ func (as *Agent_Manager) send_agent_log(recv_data []parse.Deserialization_struct
 
 
  */
+// go routine 사후 처리 ( get FILE --> Elasticsearch 저장 )
+
 // 바이너리 정보를 DB에 저장한다 ( 체크 후 저장 )
 
 func (as *Agent_Manager) check_and_Save_Binary_File(
@@ -220,8 +218,8 @@ func (as *Agent_Manager) check_and_Save_Binary_File(
 			Parent_EXE_NAME := string(parsed_event.Dyn_Data["Parent_EXE_NAME"].(string))
 			Parent_FILE_SIZE := uint32(parsed_event.Dyn_Data["Parent_FILE_SIZE"].(uint32))
 
-			as.save_Binary_File(Process_EXE_NAME, Process_FILE_SIZE, true)
-			as.save_Binary_File(Parent_EXE_NAME, Parent_FILE_SIZE, true)
+			go as.save_Binary_File(Process_EXE_NAME, Process_FILE_SIZE, true)
+			go as.save_Binary_File(Parent_EXE_NAME, Parent_FILE_SIZE, true)
 
 		}
 	case enums.PsSetLoadImageNotifyRoutine_Load:
@@ -229,7 +227,7 @@ func (as *Agent_Manager) check_and_Save_Binary_File(
 			Image_PATH := string(parsed_event.Dyn_Data["Image_Path"].(string))
 			Image_SIZE := uint32(parsed_event.Dyn_Data["Image_Size"].(uint32))
 
-			as.save_Binary_File(Image_PATH, Image_SIZE, true)
+			go as.save_Binary_File(Image_PATH, Image_SIZE, true)
 		}
 	case enums.File_System:
 		{
@@ -261,7 +259,8 @@ func (as *Agent_Manager) save_Binary_File(file_path_on_endpoint string, fileSize
 			as.shareobject.Database.Insert_Binary_File(as.Agent_Controller.Output_AGENT_ID(), file_path_on_endpoint, as.shareobject.FileIo.Root_Dir+"/"+sha256, fileSize, sha256)
 
 		} else {
-			fmt.Print("바이너리 받지 못했습니다.\n")
+			fmt.Print("바이너리 받지 못했습니다.-> 연결종료\n")
+			as.Agent_Controller.Agent_TCP.Disconnect()
 		}
 
 	} else {
@@ -485,6 +484,10 @@ func (as *Agent_Manager) send_to_elastic_search(
 		}
 	case enums.File_System:
 		{
+			if _, ok := Dyn_Data["File_SHA256"]; !ok {
+				return false
+			}
+
 			as.send_File_System_Event(
 				SIEM.Unique_Behavior_file_system_Event{
 					FilePath:   Dyn_Data["FILE_PATH"].(string),

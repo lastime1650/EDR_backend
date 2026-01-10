@@ -6,13 +6,23 @@ import (
 	"CoreServer/agent"
 	"CoreServer/util"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"runtime"
 	"strconv"
+	"time"
 )
 
 func main() {
+
+	// 시간대 체크
+	loc, err := time.LoadLocation("Asia/Seoul")
+	if err != nil {
+		log.Fatalf("시간대 'Asia/Seoul'을 로드할 수 없습니다: %v", err)
+	}
+	nowInSeoul := time.Now().In(loc)
+	fmt.Printf("현재 시간: %s\n", nowInSeoul.Format("2006-01-02T15:04:05.000"))
 
 	// Docker 로부터 받을 환경변수
 
@@ -38,11 +48,11 @@ func main() {
 
 	// 엘라스틱서치
 	ELASTICSEARCH_HOST := util.Check_ENV("ELASTICSEARCH_HOST", "0.0.0.0") // 엘라스틱서치 서버 IP
-	ELASTICSEARCH_PORT := util.Check_ENV("ELASTICSEARCH_PORT", "9200")          // 엘라스틱서치 서버 포트
+	ELASTICSEARCH_PORT := util.Check_ENV("ELASTICSEARCH_PORT", "9200")    // 엘라스틱서치 서버 포트
 
 	// 카프카
-	KAFKA_HOST := util.Check_ENV("KAFKA_PORT", "0.0.0.0") // 카프카 서버 IP
-	KAFKA_PORT := util.Check_ENV("KAFKA_PORT", "9092")  // 카프카 서버 포트
+	KAFKA_HOST := util.Check_ENV("KAFKA_HOST", "0.0.0.0") // 카프카 서버 IP
+	KAFKA_PORT := util.Check_ENV("KAFKA_PORT", "9092")    // 카프카 서버 포트
 
 	// 분석 서버
 	ANALYSIS_SERVER_HOST := util.Check_ENV("ANALYSIS_SERVER_HOST", "0.0.0.0") // 분석 서버 IP
@@ -55,7 +65,6 @@ func main() {
 	AGENT_RECEIVE_REMOTE_PORT := util.Check_ENV("AGENT_RECEIVE_REMOTE_PORT", "10299") // 에이전트 리시브 포트
 
 	// local내 스토리지
-
 	LOCAL_STORAGE_DIR := os.Getenv("LOCAL_STORAGE_DIR") // 에이전트로부터 파일 저장 하는 디렉토리
 	if LOCAL_STORAGE_DIR == "" {
 		LOCAL_STORAGE_DIR = "/CoreServer/save_file" // 기본값 ( '/CoreServer' 은 절대경로 )

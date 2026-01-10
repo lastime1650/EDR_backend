@@ -60,7 +60,7 @@ class _Analysis_Server_:
         self.app_router.get("/API/Get_All_Scripts")(self.Get_All_Scripts)
     
     def start_web(self):
-        uvicorn.run(self.app, host=self.serverip, port=self.serverport)
+        uvicorn.run(self.app, host=self.serverip, port=self.serverport, access_log=False) # access_log=False -> log안보이게
         return
 
     # 분석 요청
@@ -74,15 +74,10 @@ class _Analysis_Server_:
         
         # 비동기 분석 / 결과는 ElasticSearch에 저장.
         
-        # 큐에 전달
-        self.ScriptManager.Analysis_Start_Queue.put(
-            {
-                "script_type": Script_Type,
-                "DATA": DATA
-            }
-        )
+        threading.Thread(target=self.ScriptManager.Start_Analysis, args=(Script_Type, DATA)).start()
         
-        return {"status":"success", "message":"요청성공"}
+        return {"status":"success", "message":"요청된"}
+    
     
     # 분석 완료 확인
     async def Check_Analysis_Result(self, input_JSON:Optional[str] = Query(None)):
@@ -209,12 +204,12 @@ print(r)
 # TEST
 #
 
-"""url = f"http://{analysis_server_host}:{analysis_server_port}/API/Analysis_Request"
+'''url = f"http://{analysis_server_host}:{analysis_server_port}/API/Analysis_Request"
 
 # file - TEST 
 import base64
 test_exe_sample = b''
-with open(r"C:/nuget.exe", 'rb') as f:
+with open(r"C:/Share/x.exe", 'rb') as f:
     test_exe_sample = f.read()
 request_data = json.dumps(
             {
@@ -227,8 +222,8 @@ request_data = json.dumps(
 headers = {"Content-Type": "application/octet-stream"}
 response = requests.post(url, data=request_data, headers=headers)
 #print(response.text)
-print(response.text)"""
-
+print(response.text)
+'''
 
 
 # network - TEST

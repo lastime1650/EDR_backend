@@ -57,30 +57,7 @@ func (as *AnalysisServer_Manager) Request_Analysis(Data Request_Analysis_struct)
 
 	req_url := fmt.Sprintf("http://%s:%d/API/Analysis_Request", as.server_ip, as.server_port)
 
-	if _, err := util.RestAPI_POST(req_url, &req_json_bytes); err != nil {
-		fmt.Println(err)
-	} else {
-		/*
-			[결과]
-			{
-				"Analysis_Result": [
-					{
-						"스크립트네임":[
-							{분석결과1},
-							{2},
-							{3},,,,,
-						]
-					},
-				{},
-				{},,,,
-				]
-			}
-		*/
-		//result_json := util.ERROR_PROCESSING(util.JSON_to_Map(result))
-		//result_json["Analysis_Result"]
-		//fmt.Print("파일 분석 요청 완료")
-		//fmt.Println(result)
-	}
+	util.RestAPI_POST(req_url, &req_json_bytes) // 별다른 예외처리 없음 (비동기 처리이므로 실패의 경우 다시 요청할 수 있음)
 
 }
 

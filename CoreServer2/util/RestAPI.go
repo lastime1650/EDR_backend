@@ -2,7 +2,6 @@ package util
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -34,7 +33,7 @@ func RestAPI_POST(url string, data *[]byte) (string, error) {
 	data_buf := bytes.NewBuffer(*data)
 
 	if res, err := http.Post(url, "application/octet-stream", data_buf); err == nil && res != nil {
-		fmt.Println(res.Request.Response)
+		// fmt.Println(res.Request.Response)
 		defer res.Body.Close()
 
 		body, err := io.ReadAll(res.Body)

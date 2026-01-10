@@ -19,12 +19,12 @@ class CoreServerAPI():
         finally:
             return response
         
-    def CoreServer_agent_response_process(self, agent_id:str, sha256:str, file_size:int, is_remove:bool=False)->bool:
+    def CoreServer_agent_response_process(self, agent_id:str, sha256:str, filesize:int, is_remove:bool=False)->dict:
         url = f"{self.HTTP_connection}/request/response/process"
         params = {
             "agent_id": agent_id,
             "sha256": sha256,
-            "file_size": file_size,
+            "filesize": filesize,
             "is_remove": is_remove
         }
         response = requests.get(
@@ -32,26 +32,15 @@ class CoreServerAPI():
             params=params
         ).json()
         
-        return_bool = False
-        try:
-            if isinstance(response["message"], bool):
-                return_bool = response["message"]
-            elif isinstance(response["message"], str):
-                return_bool = bool(response["message"])
-            else:
-                return_bool = False
-        except:
-            return_bool = False
-            
-        return return_bool  
+        return response  
 
     # 파일
-    def CoreServer_agent_response_file(self, agent_id:str, sha256:str, file_size:int, is_remove:bool=False)->dict:
+    def CoreServer_agent_response_file(self, agent_id:str, sha256:str, filesize:int, is_remove:bool=False)->dict:
         url = f"{self.HTTP_connection}/request/response/file"
         params = {
             "agent_id": agent_id,
             "sha256": sha256,
-            "file_size": file_size,
+            "filesize": filesize,
             "is_remove": is_remove
         }
         response = requests.get(
@@ -59,18 +48,7 @@ class CoreServerAPI():
             params=params
         ).json()
         
-        return_bool = False
-        try:
-            if isinstance(response["message"], bool):
-                return_bool = response["message"]
-            elif isinstance(response["message"], str):
-                return_bool = bool(response["message"])
-            else:
-                return_bool = False
-        except:
-            return_bool = False
-            
-        return return_bool  
+        return response  
 
     # 네트워크
     def CoreServer_agent_response_network(self, agent_id:str,  remoteip:str, is_remove:bool=False)->dict:

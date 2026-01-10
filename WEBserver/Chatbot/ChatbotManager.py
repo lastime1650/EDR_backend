@@ -11,11 +11,15 @@ from LLM.LLMManager import LLM_Manager
 # EDR 매니저
 from EDR.EDRManager import EDR_Manager
 
+# 연관 분석기
+from BehaviorAnalyzerManagement.BehaviorAnalzer import BehaviorAnalyzer
+
 class ChatbotManager():
     def __init__(
         self,
         EDR_Manager:EDR_Manager, # -> 인수로 활용
         LLM_Manager:LLM_Manager, # -> 인수로 활용
+        TreeBehaviorAnalyzer:BehaviorAnalyzer, # -> 인수로 활용
         ):
         
         # 1. 웹 소켓 객체 매니저
@@ -25,7 +29,9 @@ class ChatbotManager():
         from Chatbot.Chatbot_LLM_Management.ChatbotLLM_Tools import Chatbot_tools
         ChatbotTools = Chatbot_tools(
             websocket_manager=self.WebSocketManager,
-            EDR_Manager=EDR_Manager
+            EDR_Manager=EDR_Manager,
+            TreeBehaviorAnalyzer=TreeBehaviorAnalyzer,
+            
         )
         
         # 3. 챗봇전용 LLM 매니저

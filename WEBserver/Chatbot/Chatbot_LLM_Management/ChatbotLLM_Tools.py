@@ -13,10 +13,14 @@ from EDR.EDRManager import EDR_Manager
 
 from Utility.timestamper import Get_Current_Time
 
+# 연관 분석기
+from BehaviorAnalyzerManagement.BehaviorAnalzer import BehaviorAnalyzer
+
 class Chatbot_tools():
-    def __init__(self,  websocket_manager:WebSocketManager, EDR_Manager:EDR_Manager):
+    def __init__(self,  websocket_manager:WebSocketManager, EDR_Manager:EDR_Manager, TreeBehaviorAnalyzer:BehaviorAnalyzer):
         self.websocket_manager = websocket_manager
         self.EDR_Manager = EDR_Manager # 코어 서버 접근 관리
+        self.TreeBehaviorAnalyzer = TreeBehaviorAnalyzer # LLM 연관분석 결과
         pass
 
     # 실제 도구 메서드
@@ -237,10 +241,54 @@ class Chatbot_tools():
                             )
                         }
                     )
+                elif "LLM_EDR" in cmd:
+                    
+                    if agent_id == None:
+                        return "options필드에 agent_id가 현재 없어서 처리할 수 없습니다. options에 agent_id, root_process_id 2개가 필요합니다."
+                    if root_process_id == None:
+                        return "options필드에 root_process_id가 현재 없어서 처리할 수 없습니다. options에 agent_id, root_process_id 2개가 필요합니다."
+                    
+                    output.append(
+                        {
+                            "cmd": "LLM_EDR",
+                            "LLM_results": self.TreeBehaviorAnalyzer.is_already_analyzed_by_process_cycle_id(
+                                agent_id=agent_id,
+                                root_process_id=root_process_id
+                            )
+                        }
+                    )
                 else:
-                    return "잘못된 cmd 명칭입니다. 다시 입력해주세요."
+                    return "아직 지원하지 않은 cmd 처리입니다. 다시 입력해주세요."
 
         return json.dumps(output,ensure_ascii=False)
+
+    def LLM_analysis(self, From_LLM: str) -> any:
+        parsed = self.LLM_to_JSON(From_LLM)
+        if not parsed:
+            return self.output_JSON_Parsing_failure()
+        # 필드 검사
+        '''
+            "process_sha256": "상기 설명한 (1) SHA256 해시값", 
+            "parent_sha256": "상기 설명한 (2) SHA256 해시값"
+        '''
+        if "process_sha256" not in parsed:
+            return "process_sha256 필드가 없습니다."
+        if "parent_sha256" not in parsed:
+            return "parent_sha256 필드가 없습니다."
+        
+        
+        # 연관 분석 결과 가져오기
+        output = self.TreeBehaviorAnalyzer.behavior_elasticsearch.get_by_sha256(
+            process_sha256=parsed["process_sha256"],
+            parent_sha256=parsed["parent_sha256"]
+        )
+        if output == None:
+            return "연관분석 결과가 아직 없습니다. 사용자로부터 정확하게 입력받았는 지 확인이 필요할 수 있습니다."
+        
+        return json.dumps(output,ensure_ascii=False)
+
+        
+        
 
     def response(self, From_LLM: str) -> any:
         parsed = self.LLM_to_JSON(From_LLM)
@@ -261,14 +309,14 @@ class Chatbot_tools():
             return self.EDR_Manager.CoreServerAPI.CoreServer_agent_response_process(
                 agent_id=agent_id,
                 sha256=parsed["info"]["sha256"],
-                file_size=parsed["info"]["file_size"],
+                filesize=parsed["info"]["filesize"],
                 is_remove=is_remove
             )
         elif cmd == "file":
             return self.EDR_Manager.CoreServerAPI.CoreServer_agent_response_file(
                 agent_id=agent_id,
                 sha256=parsed["info"]["sha256"],
-                file_size=parsed["info"]["file_size"],
+                filesize=parsed["info"]["filesize"],
                 is_remove=is_remove
             )
         elif cmd == "network":
@@ -491,7 +539,7 @@ class Chatbot_tools():
                             2. 또는 사용자가 현재 속한 특정 페이지에 대한 이벤트 목록을 가져오기 위해 이 도구를 호출할 수 있습니다. 
                             3. [ALL_DASHBOARD] 페이지는 {특정되지 않음 모든 에이전트}에 대한 이벤트를 이 도구를 사용하여 탐색결과를 가시화합니다. 
                             4. [Agent_Detail] 페이지는 {특정된 에이전트}에 대한 {행위들-> registry, filesystem, network, process, imageload}이벤트를 이 도구를 사용하여 탐색결과를 가시화합니다. 
-                            5. [ROOT_Process_Detail] 페이지는 {특정된 에이전트} -> {특정된 루트 프로세스}에 대한 {행위들-> registry, filesystem, network, process, imageload}이벤트를 이 도구를 사용하여 탐색결과를 가시화합니다.
+                            5. [ROOT_Process_Detail] 페이지는 {특정된 에이전트} -> {특정된 루트 프로세스}에 대한 {행위들-> registry, filesystem, network, process, imageload, llm_edr(LLM기반 Tree 연관분석 결과조회) }이벤트를 이 도구를 사용하여 탐색결과를 가시화합니다.
 
                             ** [함수 사용 조건]
                             1. EDR에 연결된 모든 에이전트가 수집한 이벤트 정보가 필요할 때 사용합니다.
@@ -506,6 +554,7 @@ class Chatbot_tools():
                             -- "NETWORK_DASHBOARD" // 네트워크 수집 대시보드
                             -- "PROCESS_DASHBOARD" // 프로세스 수집 대시보드
                             -- "IMAGELOAD_DASHBOARD" // 이미지 로드 수집 대시보드
+                            -- "LLM_EDR" // LLM TREE 연관분석 결과 대시보드
                             
                             1. 다음과 같은 온전한 JSON 형식 인자로 입력합니다.
                             ```json
@@ -527,7 +576,7 @@ class Chatbot_tools():
                             6. 'root_parent_process_life_cycle_id' 키는 선택적인 key입니다.
                             7. 'process_life_cycle_id' 키는 선택적인 key입니다.
                             8. 'query_string' 키는 선택적인 key입니다.
-                            
+                            * options 필드 데이터는 현재 위치한 페이지로부터 얻을 수 있는 인자가 있으면 모두 포함해야합니다. 
                             
                             
                             ** [함수 호출 후 반환 형식]
@@ -542,6 +591,64 @@ class Chatbot_tools():
             )
         )
 
+        """# LLM 연관 분석에 대한 토의
+        tools.append(
+            Tool(
+                name="LLM_analysis",
+                func=self.LLM_analysis,
+                description='''
+                            ** [함수 설명]
+                            이 함수는 LLM 연관 분석결과에 대하여 사용자와 토론/토의/대화/제안등을 나누기 위한 LLM 연관 분석 결과를 조회하는 도구/함수입니다.
+                            
+                            ** [함수 사용 조건]
+                            이 함수를 호출하기 위한 조건은 다음과 같습니다. 
+                            1) TREE 구조의 Root에 해당하는 프로세스 SHA256 파일 해시값
+                            2) 상기 (1)의 부모 SHA256 파일 해시값
+                            -> 총 2개를 입력받아야합니다. 만약 입력이 부족하면 추가적으로 질의하세요
+                            
+                            ** [함수 인자]
+                            다음과 같은 JSON 형식의 인자를 만들어 호출하세요.
+                            ```json
+                            {
+                                "process_sha256": "상기 설명한 (1) SHA256 해시값", 
+                                "parent_sha256": "상기 설명한 (2) SHA256 해시값"
+                            }
+                            ```
+                            ** [함수 로직]
+                            이 함수를 호출하게 되면 LLM 분석결과 값 JSON을 반환합니다. 
+                            만약 반환 형식이 올바르지 않은 경우, 문제 또는 아직 분석되지 않음을 의미합니다.
+                            
+                            ** [함수 호출 후 반환 형식]
+                            ```json
+                            {
+                                "edr": {
+                                    "llm_result": {
+                                        "result": {
+                                            // 이 필드는 TREE 연관 분석의 위협 결과를 나타냅니다.
+                                            // 이를 활용하여 대화를 주고 받으십시오. 
+                                            "tree_anomaly": "이상탐지 결과 Abnormal(악성행위) 중 하나를 확인하세요.",
+                                            "tree_anomaly_score": "이상탐지 결과 스코어(0.0-1.0) 확인하세요.",
+                                            "tree_severity": "심각도를 확인하세요. low, medium, high, critical 중 하나",
+                                            "tree_tags": "관련 태그 단어를 확인하세요(하지만 너무 의존하지 마십시오. 잘못 관련된 태그와 있을 수 있습니다.)",
+                                            "tree_detail": "TREe 연관분석 결과 상세 리포트를 의미합니다.",
+                                            "tree_opinion": "당시 연관분석하던 분석가의 조언입니다.",
+                                            "tree_relation": "연관분석 Tree에 대한 관계도",
+                                            "tree_suspicion_score": "의심 수치(이상탐지 보다 정확도가 높을 수 있음)",
+                                            "tree_security": "이 Tree에 대한 보안 조치를 의미합니다.",
+                                            "tree_summary": "연관분석 Tree의 요약 리포트를 의미합니다."
+                                        }
+                                    },
+                                    "self_sha256_filesize" : "int형이며, 해당 프로세스(self_sha256)에 대한 파일 사이즈임.",
+                                    "root_parent_sha256": "이 Tree 프로세스를 생성한 Parent이지만, 차단시에는 지정하지 않습니다.",
+                                    "parent_sha256": "이 Tree 프로세스를 생성한 Parent이지만, 차단시에는 지정하지 않습니다.",
+                                    "self_sha256": "Tree의 최상위 프로세스 SHA256값"
+                                }
+                            }
+                            ```
+                '''
+            )
+        )"""
+        
         # 이벤트 탐색기
         tools.append(
             Tool(
@@ -593,8 +700,8 @@ class Chatbot_tools():
                                     "is_remove": bool형식 True이면 차단해제, False이면 차단등록 // 정확하게 설정해야합니다 (엄청 민감한 필드임)
                                     "info": {
                                         // "cmd" 지정된 값에 따라 아래 필드를 적절히 입력하시오.
-                                        "SHA256": "SHA256값",
-                                        "FILE_SIZE": 1024,
+                                        "sha256": "SHA256값",
+                                        "filesize": 1024,
                                         "remoteip": "8.8.8.8",
                                     }
                                     

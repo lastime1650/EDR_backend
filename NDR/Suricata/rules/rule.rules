@@ -1,1 +1,0 @@
-alert tcp any any -> any any (msg:"NDR-TEST";sid:999999;)

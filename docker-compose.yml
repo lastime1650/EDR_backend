@@ -1,75 +1,115 @@
-# docker-compose.yml (모든 서비스를 host 네트워크로 변경)
 
-# networks: # network_mode: "host" 사용 시 별도 네트워크 정의 불필요
-#   kafka-net:
-#     driver: bridge
+# docker-compose.yml
+
+
+networks:
+  kafka-net:
+    driver: bridge
 
 services:
   # 1. Zookeeper 서비스
   zookeeper:
-    image: confluentinc/cp-zookeeper:latest
+    image: confluentinc/cp-zookeeper:latest # 가지고 계신 주키퍼 이미지 이름으로 변경 가능
     container_name: zookeeper
-    hostname: zookeeper # host 네트워크에서는 의미가 약해지지만, 컨테이너 내부 식별용으로 유지 가능
-    network_mode: "host" # !!!! 호스트 네트워크 사용 !!!!
-    # ports: # network_mode: "host"에서는 무의미
-    #   - "2181:2181"
+    hostname: zookeeper
+    networks:
+      - kafka-net
+    ports:
+      - "2181:2181" # 주키퍼 기본 포트
     environment:
-      ZOOKEEPER_CLIENT_PORT: 2181 # 이 포트는 호스트의 2181 포트가 됨
+      ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
 
   # 2. Kafka 서비스
   kafka:
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:latest # 가지고 계신 카프카 이미지 이름으로 변경 가능
     container_name: kafka
     hostname: kafka
-    network_mode: "host" # !!!! 호스트 네트워크 사용 !!!!
-    # ports: # network_mode: "host"에서는 무의미
-    #   - "9092:9092"
-    #   - "29092:29092"
+    networks:
+      - kafka-net
+    ports:
+      # Docker 내부 네트워크 통신용 리스너 (컨테이너 -> 컨테이너)
+      - "9092:9092"
+      # Docker 외부 (호스트 머신) 통신용 리스너 (로컬 개발 환경 등)
+      - "29092:29092"
     depends_on:
-      - zookeeper
+      - zookeeper # Zookeeper가 실행된 후에 Kafka가 시작되도록 의존성 설정
     environment:
       KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: 'localhost:2181' # !!!! 변경: zookeeper 서비스가 호스트의 2181 포트 사용 !!!!
-      # !!!! KAFKA_ADVERTISED_LISTENERS 설정은 호스트 IP 또는 localhost를 사용하도록 대폭 수정 필요 !!!!
-      # 예시: KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092 (단일 리스너 사용 또는 실제 호스트 IP 사용)
-      # 기존 PLAINTEXT_HOST 개념이 불필요해질 수 있음.
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092 # !!!! 중요: 외부에서 접근 가능한 호스트 IP/localhost와 포트로 변경 !!!!
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181' # docker-compose 네트워크 내에서 zookeeper 서비스 이름으로 접근
+      # 내부 리스너 설정 (컨테이너 간 통신)
+      # 외부 리스너 설정 (호스트 머신에서 접근)
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092 # kafka:9092(내부용) , localhost:29092(외부용)
+      # 단일 노드 클러스터 설정 (운영 환경에서는 Replication Factor를 1보다 크게 설정해야 함)
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_MESSAGE_MAX_BYTES: '10485760'
-      KAFKA_REPLICA_FETCH_MAX_BYTES: '10485760'
-      KAFKA_FETCH_MESSAGE_MAX_BYTES: '10485760'
+      # (선택) JMX 포트 (모니터링 등에 사용)
+      # KAFKA_JMX_PORT: 9999
+      # KAFKA_JMX_HOSTNAME: localhost
+      # --- 최대 메시지 크기 설정 ---
+      KAFKA_MESSAGE_MAX_BYTES: '10485760' # 10MB
+      KAFKA_REPLICA_FETCH_MAX_BYTES: '10485760' # 10MB (message.max.bytes 이상이어야 함)
+      KAFKA_FETCH_MESSAGE_MAX_BYTES: '10485760' # 10MB (컨슈머 측 제한도 함께 조정)
+      # ---------------------------
 
-  # 3. Kafka UI 서비스
+  # 3. Kafka UI 서비스 (Provectus Kafka UI 기준)
   kafka-ui:
-    image: provectuslabs/kafka-ui:latest
+    image: provectuslabs/kafka-ui:latest # 가지고 계신 UI 이미지 이름으로 변경 가능
     container_name: kafka-ui
-    network_mode: "host" # !!!! 호스트 네트워크 사용 !!!!
+    networks:
+      - kafka-net
+    ports:
+      - "8080:8080" # Kafka UI 웹 인터페이스 포트
     depends_on:
-      - kafka
+      - kafka # Kafka가 실행된 후에 UI가 시작되도록 의존성 설정
       - zookeeper
     environment:
-      KAFKA_CLUSTERS_0_NAME: local-kafka-cluster
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: 'localhost:9092' # !!!! 변경: Kafka가 호스트의 9092 포트 사용 !!!!
-      SERVER_PORT: 8082
-      # KAFKA_CLUSTERS_0_ZOOKEEPER: 'localhost:2181' # !!!! 필요시 변경 !!!!
-
-  # 4. Elasticsearch 서비스
+      # Kafka 클러스터 설정 (UI 내에서 식별할 이름 및 접속 정보)
+      KAFKA_CLUSTERS_0_NAME: local-kafka-cluster # UI에 표시될 클러스터 이름
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092 # UI 컨테이너가 Kafka 컨테이너에 접속할 주소 (내부 리스너 사용)
+      # (선택) 주키퍼 연결 정보 (일부 기능에 필요할 수 있음)
+      # KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+      # (선택) 동적 설정을 UI에서 가능하게 할지 여부
+      # DYNAMIC_CONFIG_ENABLED: "true"
+      
+  # 4. Elasticsearch 서비스 (신규 추가)
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.4
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.4 # 요청한 버전 사용
     container_name: elasticsearch
     hostname: elasticsearch
-    network_mode: "host" # !!!! 호스트 네트워크 사용 !!!!
+    networks:
+      - kafka-net
+    ports:
+      - "9200:9200" # Elasticsearch HTTP 포트
+      - "9300:9300" # Elasticsearch Transport 포트 (노드 간 통신용)
     environment:
-      - discovery.type=single-node
-      - ELASTIC_PASSWORD=1234
-      - xpack.security.enabled=false # 개발용 보안 비활성화 유지
+      - discovery.type=single-node # 단일 노드 클러스터로 실행 (개발/테스트용)
+      - ELASTIC_PASSWORD=1234      # 'elastic' 사용자의 비밀번호 설정
+      
+      
+      # !!!! 중요 !!!!
+      # 개발/테스트 편의를 위해 보안 기능 비활성화.
+      # 운영 환경에서는 반드시 'true'로 설정하고 보안 설정을 완료해야 합니다.
+      - xpack.security.enabled=false
+      
+      #- xpack.security.transport.ssl.enabled=true
+      #- xpack.security.transport.ssl.verification_mode=full
+      #- xpack.security.transport.ssl.keystore.path=/usr/share/elasticsearch/config/certs/elasticsearch-http.p12
+      #- xpack.security.transport.ssl.truststore.path=/usr/share/elasticsearch/config/certs/ca.crt
+      
+      #- xpack.security.http.ssl.enabled=true
+      #- xpack.security.http.ssl.keystore.path=/usr/share/elasticsearch/config/certs/elasticsearch-http.p12
+      #- xpack.security.http.ssl.truststore.path=/usr/share/elasticsearch/config/certs/ca.crt
+      
+      
+      
+      # JVM 힙 메모리 설정 (최소/최대 동일하게 설정 권장)
+      # 로컬 환경에 따라 조절 (예: 512m, 1g, 2g)
       - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
-    ulimits:
+    ulimits: # 시스템 리소스 제한 설정 (메모리 잠금 및 파일 핸들 수)
       memlock:
         soft: -1
         hard: -1
@@ -77,145 +117,207 @@ services:
         soft: 65536
         hard: 65536
     volumes:
-      - elasticsearch_data:/usr/share/elasticsearch/data
-    healthcheck: # localhost로 접근하는 healthcheck는 그대로 유효할 수 있음
+      - elasticsearch_data:/usr/share/elasticsearch/data # 데이터 영속성을 위한 볼륨
+    healthcheck: # 컨테이너 상태 확인 (선택 사항)
         test: ["CMD-SHELL", "curl -s http://localhost:9200 >/dev/null || exit 1"]
         interval: 8s
         timeout: 30s
         retries: 4
-        start_period: 60s
+        start_period: 60s  # 컨테이너 시작 후 60초 동안은 실패해도 무시
 
-  # 5. Logstash 서비스
+  # 5. Logstash 서비스 (수정)
   logstash:
-    image: docker.elastic.co/logstash/logstash:8.17.4
+    # Elasticsearch와 버전을 맞추는 것이 좋습니다.
+    image: docker.elastic.co/logstash/logstash:8.17.4 # 버전 변경
     container_name: logstash
     hostname: logstash
-    network_mode: "host" # !!!! 호스트 네트워크 사용 !!!!
-    volumes:
-      - ./logstash-config:/usr/share/logstash/pipeline:ro
-    depends_on:
-      kafka:
-        condition: service_started
-      elasticsearch:
-        condition: service_healthy
-    environment:
-      LS_JAVA_OPTS: "-Xmx512m -Xms512m"
-      config_reload_automatic: true
-      HTTP_HOST: "0.0.0.0" # Logstash API가 호스트의 9600 포트에서 접근 가능
-      xpack_security_enabled: false
+    networks:
+      - kafka-net
 
-  # 6. Kibana 서비스
+    ports: # Logstash 자체 포트 (예: Beats 입력) 필요시 주석 해제
+        - "9600:9600" # Logstash API 포트 노출 
+        - "5044:5044"
+    volumes:
+      # Logstash 설정 파일을 컨테이너 내부 pipeline 경로에 마운트
+      - ./logstash-config:/usr/share/logstash/pipeline:ro 
+      # Logstash 데이터/로그 볼륨 (선택 사항)
+      # - logstash_data:/usr/share/logstash/data
+    depends_on:
+      kafka: # Kafka 의존성
+        condition: service_started
+      elasticsearch: # Elasticsearch 의존성 추가
+        condition: service_healthy # Elasticsearch의 healthcheck가 성공할 때까지 대기
+    environment:
+      LS_JAVA_OPTS: "-Xmx512m -Xms512m" # Logstash JVM 메모리 설정 (선택 사항)
+      config_reload_automatic: true # conf 파일이 변하면 자동으로 반영하는 것. (겁나 중요 )
+      HTTP_HOST: "0.0.0.0" # restapi(9600포트) 외부로 내보낼 때 ( 겁나 중요 )
+      xpack_security_enabled: false
+      TZ: "Asia/Seoul"
+
+ # 6. Kibana 서비스 (신규 추가)
   kibana:
-    image: docker.elastic.co/kibana/kibana:8.17.4
+    image: docker.elastic.co/kibana/kibana:8.17.4 # Elasticsearch와 동일 버전 사용!
     container_name: kibana
     hostname: kibana
-    network_mode: "host" # !!!! 호스트 네트워크 사용 !!!!
-    # ports: # network_mode: "host"에서는 무의미. Kibana는 호스트의 5601 포트 사용
-    #   - "5601:5601"
+    networks:
+      - kafka-net
+    ports:
+      - "5601:5601" # Kibana 기본 웹 포트
     environment:
-      ELASTICSEARCH_HOSTS: '["http://localhost:9200"]' # !!!! 변경: Elasticsearch가 호스트의 9200 포트 사용 !!!!
-      ELASTICSEARCH_USERNAME: kibana_system
-      ELASTICSEARCH_PASSWORD: 1234
+      # Kibana가 연결할 Elasticsearch 노드 주소 설정
+      # Docker 네트워크 내부의 Elasticsearch 서비스 이름 사용
+      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
+      # === Kibana가 Elasticsearch에 연결할 때 사용할 인증 정보 추가 ===
+      ELASTICSEARCH_USERNAME: kibana_system # 기본 수퍼유저 ID
+      ELASTICSEARCH_PASSWORD: 1234    # 설정한 비밀번호
+      # ===========================================================
       ADMIN_PRIVILEGES: "true"
       xpack.features.shortenUrl.enable: false
-      NODE_OPTIONS: "--max-old-space-size=4096"
+      # (선택) Kibana 서버 이름
+      # SERVER_NAME: my-kibana
+      # (선택) Kibana Node.js 메모리 제한 (필요시 조절)
+      # NODE_OPTIONS: "--max-old-space-size=512"
+      NODE_OPTIONS: "--max-old-space-size=4096" 
     volumes:
-      - kibana_data:/usr/share/kibana/data
+      - kibana_data:/usr/share/kibana/data # Kibana 설정/데이터 유지를 위한 볼륨
     depends_on:
-      elasticsearch:
+      elasticsearch: # Elasticsearch가 준비된 후 시작
         condition: service_healthy
-    healthcheck: # localhost로 접근하는 healthcheck는 그대로 유효할 수 있음
+    healthcheck: # Kibana 상태 확인 (선택 사항)
       test: ["CMD-SHELL", "curl -s -I http://localhost:5601/app/login | grep -q 'HTTP/1.1 200 OK' || curl -s -I http://localhost:5601/api/status | grep -q 'HTTP/1.1 200 OK'"]
       interval: 10s
-      timeout: 60s
+      timeout: 60s # Kibana는 시작 시간이 좀 더 걸릴 수 있음
       retries: 6
-      start_period: 60s
+      start_period: 60s  # 컨테이너 시작 후 60초 동안은 실패해도 무시
 
-  # 7. MariaDB 서비스
   database:
     image: mariadb:10.7
-    container_name: Database # hostname 제거 또는 유지 (내부 식별용)
-    network_mode: "host" # !!!! 호스트 네트워크 사용 !!!!
-    # ports: # network_mode: "host"에서는 무의미. MariaDB는 호스트의 3306 포트 사용 (기본 포트)
-    #   - "3307:3306" # 만약 호스트의 3306이 사용 중이면 MariaDB 설정을 변경하여 다른 포트(예:3307)를 사용하게 해야 함.
+    networks:
+      - kafka-net
+    hostname: Database
+    container_name: Database
+    ports:
+        - "3306:3306" # 테스트 시 충돌 문제로 3307 remote
     environment:
-      MARIADB_ROOT_PASSWORD: 1234
-      # MARIADB_DATABASE: EDR
-      # MARIADB_USER: root
-      # MARIADB_PASSWORD: 1234
+      MARIADB_ROOT_PASSWORD: 1234 # MariaDB root 비밀번호
+      #MARIADB_DATABASE: EDR # 생성할 데이터베이스 이름
+      #MARIADB_USER: root # 생성할 사용자 이름
+      #MARIADB_PASSWORD: 1234 # 생성할 사용자 비밀번호
     volumes:
-      - db_data:/var/lib/mysql
+      - db_data:/var/lib/mysql # 데이터 지속성을 위한 볼륨 마운트
 
-  # 8. EDR 서비스
-  edr:
-    build:
-      context: .
-      dockerfile: ./EDR_Dockerfile
-    container_name: EDR # hostname 제거 또는 유지 (내부 식별용)
+  analysis_server:
+      build:
+        context: .
+        dockerfile: ./AnalysisServer_Dockerfile
+      hostname: analysis_server
+      container_name: analysis_server
+      networks:
+        - kafka-net
+      environment:
+      # DB
+        DB_HOST: "Database" # DB 서버 IP
+        # DB_PORT: "3306" # 예시 포트 번호
+      # Elasticsearch
+        ELASTICSEARCH_HOST: "elasticsearch" # Elasticsearch 서버 IP --> 기본값 
+        # ELASTICSEARCH_PORT: "9200" # 예시 엘라스틱서치 포트 번호 --> 기본값 
+      # Kafka
+        KAFKA_HOST: "kafka" # Kafka 서버 IP --> 기본값 
+        # KAFKA_PORT: "9092" # 예시 카프카 포트 --> 기본값 
+      # Analysis Server
+        # ANALYSIS_SERVER_HOST: "0.0.0.0" # 분석 서버 IP - 같은 호스트 --> 기본값 
+        # ANALYSIS_SERVER_PORT: "6060" # 예시 포트 번호 6060 --> 기본값
+      ports:
+        - "6060:6060" # 분석 서버 포트
+      depends_on:
+        - kafka #  의존성 설정
+        - zookeeper
+        - elasticsearch
+        - database
+        - kibana
+  core_server:
+      build:
+        context: .
+        dockerfile: ./CoreServer_Dockerfile
+      hostname: core_server
+      container_name: core_server
+      networks:
+        - kafka-net
+      environment:
+      # DB
+        TZ: "Asia/Seoul" # 타임존 설정
+        DB_HOST: "Database" # DB 서버 IP
+        # DB_PORT: "3306" # 예시 포트 번호
+      # Elasticsearch
+        ELASTICSEARCH_HOST: "elasticsearch" # Elasticsearch 서버 IP --> 기본값 
+        # ELASTICSEARCH_PORT: "9200" # 예시 엘라스틱서치 포트 번호 --> 기본값 
+      # Kafka
+        KAFKA_HOST: "kafka" # Kafka 서버 IP --> 기본값 
+        KAFKA_PORT: "9092" # 예시 카프카 포트 --> 기본값 
+      # Analysis Server
+        ANALYSIS_SERVER_HOST: "analysis_server" # 분석 서버 hostname
+        # ANALYSIS_SERVER_PORT: "6060" # 예시 포트 번호 6060 --> 기본값
+      # Local Storage
+        #LOCAL_STORAGE_DIR: "./save_file" # 예시 (수동 지정 안함 추천..  EXE바이너리 저장소 ) --> 기본값 
+      ports:
+        - "10000:10000" # 코어서버의 RestAPI 서버 포트
+        - "10299:10299" # 코어서버의 에이전트 수신 포트
+      depends_on:
+        - kafka #  의존성 설정
+        - zookeeper
+        - elasticsearch
+        - database
+        - kibana
+        - analysis_server
+      volumes:
+        - save_file:/CoreServer/save_file # 내부 /CoreServer/save_file - EXE바이너리 절대 저장소 경로
 
-    network_mode: "host" # !!!! 호스트 네트워크 사용 !!!!
-    # === 절대 권한 부여 ===
-    privileged: true
-    # ======================
 
-    environment:
-      # !!!! DB_HOST, ELASTICSEARCH_HOST, KAFKA_HOST 모두 "localhost" 또는 실제 호스트 IP로 변경 필요 !!!!
-      DB_HOST: "localhost" # MariaDB가 호스트의 (기본)3306 포트 사용 가정
-      # DB_PORT: "3306" # MariaDB가 3306을 쓴다면 포트 명시 불필요. 다른 포트면 명시.
+  # 웹 서버는 HOST와 네트워크 공유한다. 
+  web_server:
+      build:
+        context: .
+        dockerfile: ./Web_Dockerfile
+      hostname: web_server
+      container_name: web_server
 
-      ELASTICSEARCH_HOST: "localhost"
-      # ELASTICSEARCH_PORT: "9200"
+      network_mode: "host"
 
-      # ANALYSIS_SERVER_HOST: "0.0.0.0" # 0.0.0.0은 보통 모든 인터페이스를 의미하므로 host 모드에서 유효할 수 있음
-      # ANALYSIS_SERVER_PORT: "6060"
+      environment:
 
-      WEBSOCKET_EXTERNAL_HOST: "192.168.0.1" # 이 설정은 외부 클라이언트용이므로 그대로 유지 가능
-      # LOCAL_STORAGE_DIR: "./save_file"
-    # ports: # network_mode: "host"에서는 무의미. EDR 서비스는 호스트의 10000, 10299, 8000, 6060 포트 사용
-    #   - "10000:10000"
-    #   - "10299:10299"
-    #   - "8000:8000"
-    #   - "6060:6060"
-    depends_on: # 의존성 순서는 유지
-      - kafka
-      - zookeeper
-      - elasticsearch
-      - database
-      - kibana
-    volumes:
-      - save_file:/CoreServer/save_file
-  # 9. NDR 서비스
-  # ndr:
-  #  build:
-  #    context: .
-  #    dockerfile: ./NDR_Dockerfile
-  #  container_name: NDR # hostname 제거 또는 유지 (내부 식별용)
-  #
-  #  network_mode: "host" # !!!! 호스트 네트워크 사용 !!!!
-  #  # === 절대 권한 부여 ===
-  # privileged: true
-  #  # ======================
-  #
-  #  
-  #  init: true
-  #
-  #  environment:
-  #
-  #
-  #    ELASTICSEARCH_HOST: "localhost"
-  #    # ELASTICSEARCH_PORT: "9200"
-  #
-  #
-  #  volumes:
-  #    - ./NDR/Suricata/rules:/docker__suricata/rules
+        KIBANA_HOST: "192.168.1.202" # "172.30.1.1"
+
+
+
+      # 클라이언트 웹 소켓 ( WAN 인터페이스 주소 )
+        WEBSOCKET_EXTERNAL_HOST: "192.168.1.202" # "172.30.1.1" # -> 웹 클라이언트 외부-사용자 측면, 웹 접근가능 서버 IP ( Python내부에서 자동처리할 예정 )
+
+      ports:
+        - "8000:8000" # 웹 서버 포트
+      depends_on:
+        - kafka #  의존성 설정
+        - zookeeper
+        - elasticsearch
+        - database
+        - kibana
+        - analysis_server
+        - core_server
+
+
+
 
 # Docker Named Volumes 정의
 volumes:
-  elasticsearch_data:
+  # ... (기존 볼륨 정의: zookeeper_data, zookeeper_log, kafka_data 주석 처리된 상태) ...
+  elasticsearch_data: # Elasticsearch 데이터 볼륨
     driver: local
-  kibana_data:
+  # logstash_data: # 주석 해제시 사용
+  #   driver: local
+  kibana_data: # Kibana 데이터 볼륨 (신규 추가)
     driver: local
-  db_data:
+    
+  db_data: # 마리아 DB 
     driver: local
-  save_file:
+
+  save_file: # EXE바이너리 저장소
     driver: local

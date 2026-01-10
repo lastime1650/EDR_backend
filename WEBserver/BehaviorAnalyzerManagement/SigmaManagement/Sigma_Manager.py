@@ -30,10 +30,21 @@ class SigmaStoredRule():
 
 class SigmaOutputs():
     def __init__(self):
-        self.SigmaResults:dict[str, list] = {}
+        self.SigmaResults:dict[list] = {}
     
-    def Add(self, eql_output:list, rule_name:SigmaRuleType):
-        self.SigmaResults[rule_name] = eql_output   
+    def Add(self, eql_output:list, rule_dict:dict, rule_name:str):
+        
+        
+        if rule_name not in self.SigmaResults:
+            self.SigmaResults[rule_name] = []
+        
+        
+        self.SigmaResults[rule_name].append(
+            {
+                "detected_event": eql_output,
+                "rule": rule_dict
+            }  
+        )
         
     def Output(self, rule_name:Optional[SigmaRuleType]=None)->Optional[list]:
         try:
@@ -86,15 +97,6 @@ class Sigma_Manager():
                 #    *   알려진 악성 파일의 해시를 탐지하는 데 사용됩니다. Sigma 룰에서는 보통 특정 해시 타입과 함께 사용됩니다 (예: `hashes|contains: 'SHA1=...'`).   
                 #
                 "Hashes": "unique.process_behavior_events.Process_Created.ProcessSHA256",
-                #7.  **`ProcessId`**:
-                #    *   해당 프로세스의 고유 ID (PID).
-                #    *   탐지 조건 자체보다는 이벤트 간 상관관계 분석 등에 더 활용될 수 있습니다.
-                #
-                "ProcessId" : "unique.process_behavior_events.Process_Created.ProcessId",
-                #8.  **`ParentProcessId`**:
-                #    *   부모 프로세스의 PID.
-                #
-                "ParentProcessId" : "unique.process_behavior_events.Process_Created.Parent_ProcessId",
                 #9.  **`OriginalFileName`**:
                 #     *   실행 파일의 원래 파일 이름 (패킹되거나 이름이 변경된 경우에도 원래 이름 정보를 포함할 수 있습니다).
                 #
@@ -156,7 +158,7 @@ class Sigma_Manager():
         self, 
         target:SigmaTargetEndpoint, 
         
-        agent_id:str, root_process_id:str
+        agent_id:str, root_process_id:str, process_id:str
         
         )->SigmaOutputs:
         
@@ -174,7 +176,7 @@ class Sigma_Manager():
             for rule_info in loaded_rules:
                 
                 for EQL_query in rule_info.rule_elasticsearch_eql:
-                
+                    
                     if len(EQL_query) == 0:
                         continue
                     
@@ -184,7 +186,8 @@ class Sigma_Manager():
                         eql=EQL_query,
                         
                         agent_id=agent_id,#'d7dbf53c4007173122ff65cbba4a1cf103277eb91f3c366a534ed37a942e363cdd7367ef18dc11d0386b84797a660c558f3b76fa97e2b497928b2b61f73fdccf',
-                        root_process_id=root_process_id#'a7ad5a9b121d726053c7d99414135afd6efb654a90008a0cf436a4a43613d2e442a20c539a5673f44fe2f132e5bf0cdd6cfd4c081682f519b0478e893689af80',
+                        root_process_id=root_process_id,#'a7ad5a9b121d726053c7d99414135afd6efb654a90008a0cf436a4a43613d2e442a20c539a5673f44fe2f132e5bf0cdd6cfd4c081682f519b0478e893689af80',
+                        process_id=process_id,
                     )
                     if eql_output == None:
                         continue
@@ -192,6 +195,8 @@ class Sigma_Manager():
                     # eql 결과 저장
                     OutPut.Add(
                         eql_output=eql_output,
+                        rule_dict=rule_info.rule_dict,
+                        
                         rule_name=SigmaRule_info_key_name
                     )
                     #print(f"일치! --> {OutPut.Output()}")
@@ -204,13 +209,13 @@ class Sigma_Manager():
     
     # 내부 함수
     # Elasticsearch 쿼리
-    def eql_query(self, eql:str, agent_id:str, root_process_id:str, )->Optional[list]:
+    def eql_query(self, eql:str, agent_id:str, root_process_id:str,process_id:str )->Optional[list[dict]]:
         
         try:
             return self.es.EQL_Query(
                 eql_query=eql,
                 
-                dsl_filter=self.make__DSL_filter_(agent_id=agent_id, root_process_id=root_process_id),
+                dsl_filter=self.make__DSL_filter_(agent_id=agent_id, root_process_id=root_process_id, process_id=process_id),
                 
                 index="siem-edr-*"
             )
@@ -222,7 +227,7 @@ class Sigma_Manager():
     
     # 기본 쿼리문
     # 쿼리 생성
-    def make__DSL_filter_(self, agent_id:str, root_process_id:str)->dict:
+    def make__DSL_filter_(self, agent_id:str, root_process_id:str,process_id:str )->dict:
         return {
             "bool":{
                 "filter": [
@@ -234,6 +239,11 @@ class Sigma_Manager():
                     {
                         "term": {
                             "categorical.process_info.Root_Parent_Process_Life_Cycle_Id": root_process_id  # 최상위 루트 프로세스 사이클 아이디
+                        }
+                    },
+                    {
+                        "term": {
+                            "categorical.process_info.Process_Life_Cycle_Id": process_id  # 프로세스 사이클 아이디
                         }
                     }
                 ]
@@ -272,9 +282,6 @@ class Sigma_Manager():
                     for key in self.SigmaRuleFieldMapping[rule_type.name]:
                         eql = eql.replace(key, self.SigmaRuleFieldMapping[rule_type.name][key])
                         
-                        # 자체 구축한 경우
-                        if 'custom1.yml' in rule_file_path:
-                            eql = eql.replace('\\\\', '\\')
                         
                     EQL_ruleSigma[i] = eql # 테스트 성공
                 
@@ -305,7 +312,7 @@ class Sigma_Manager():
             except:
                 continue
         
-        print(f"{rule_type.name} -")
+        print(f"Sigma Loaded ->>> {rule_type.name} -")
         return output
 
 
